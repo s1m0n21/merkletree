@@ -1,3 +1,4 @@
+use std::fmt;
 use std::marker::PhantomData;
 use std::path::PathBuf;
 use std::sync::{Arc, RwLock};
@@ -75,10 +76,15 @@ pub const BUILD_DATA_BLOCK_SIZE: usize = 64 * BUILD_CHUNK_NODES;
 /// layer merkle tree without layers (i.e. a conventional merkle
 /// tree).
 
-#[derive(Clone, Eq, PartialEq)]
+#[derive(Clone, Eq, PartialEq, Debug)]
 #[allow(clippy::enum_variant_names)]
-enum Data<E: Element, A: Algorithm<E>, S: Store<E>, BaseTreeArity: Unsigned, SubTreeArity: Unsigned>
-{
+enum Data<
+    E: Element,
+    A: Algorithm<E> + fmt::Debug,
+    S: Store<E>,
+    BaseTreeArity: Unsigned + fmt::Debug,
+    SubTreeArity: Unsigned + fmt::Debug,
+> {
     /// A BaseTree contains a single Store.
     BaseTree(S),
 
@@ -89,8 +95,13 @@ enum Data<E: Element, A: Algorithm<E>, S: Store<E>, BaseTreeArity: Unsigned, Sub
     TopTree(Vec<MerkleTree<E, A, S, BaseTreeArity, SubTreeArity>>),
 }
 
-impl<E: Element, A: Algorithm<E>, S: Store<E>, BaseTreeArity: Unsigned, SubTreeArity: Unsigned>
-    Data<E, A, S, BaseTreeArity, SubTreeArity>
+impl<
+        E: Element,
+        A: Algorithm<E> + fmt::Debug,
+        S: Store<E>,
+        BaseTreeArity: Unsigned + fmt::Debug,
+        SubTreeArity: Unsigned + fmt::Debug,
+    > Data<E, A, S, BaseTreeArity, SubTreeArity>
 {
     /// Read-only access to the BaseTree store.
     fn store(&self) -> Option<&S> {
@@ -125,24 +136,24 @@ impl<E: Element, A: Algorithm<E>, S: Store<E>, BaseTreeArity: Unsigned, SubTreeA
         }
     }
 }
-impl<E: Element, A: Algorithm<E>, S: Store<E>, BaseTreeArity: Unsigned, SubTreeArity: Unsigned>
-    std::fmt::Debug for Data<E, A, S, BaseTreeArity, SubTreeArity>
-{
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("enum Data").finish()
-    }
-}
+//impl<E: Element, A: Algorithm<E>, S: Store<E>, BaseTreeArity: Unsigned, SubTreeArity: Unsigned>
+//    std::fmt::Debug for Data<E, A, S, BaseTreeArity, SubTreeArity>
+//{
+//    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+//        f.debug_struct("enum Data").finish()
+//    }
+//}
 
 #[allow(clippy::type_complexity)]
 #[derive(Clone, Eq, PartialEq)]
 pub struct MerkleTree<E, A, S, BaseTreeArity = U2, SubTreeArity = U0, TopTreeArity = U0>
 where
     E: Element,
-    A: Algorithm<E>,
+    A: Algorithm<E> + fmt::Debug,
     S: Store<E>,
-    BaseTreeArity: Unsigned,
-    SubTreeArity: Unsigned,
-    TopTreeArity: Unsigned,
+    BaseTreeArity: Unsigned + fmt::Debug,
+    SubTreeArity: Unsigned + fmt::Debug,
+    TopTreeArity: Unsigned + fmt::Debug,
 {
     data: Data<E, A, S, BaseTreeArity, SubTreeArity>,
     leafs: usize,
@@ -170,11 +181,11 @@ where
 
 impl<
         E: Element,
-        A: Algorithm<E>,
+        A: Algorithm<E> + fmt::Debug,
         S: Store<E>,
-        BaseTreeArity: Unsigned,
-        SubTreeArity: Unsigned,
-        TopTreeArity: Unsigned,
+        BaseTreeArity: Unsigned + fmt::Debug,
+        SubTreeArity: Unsigned + fmt::Debug,
+        TopTreeArity: Unsigned + fmt::Debug,
     > std::fmt::Debug for MerkleTree<E, A, S, BaseTreeArity, SubTreeArity, TopTreeArity>
 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -201,10 +212,10 @@ pub trait Element: Ord + Clone + AsRef<[u8]> + Sync + Send + Default + std::fmt:
 
 impl<
         E: Element,
-        A: Algorithm<E>,
-        BaseTreeArity: Unsigned,
-        SubTreeArity: Unsigned,
-        TopTreeArity: Unsigned,
+        A: Algorithm<E> + fmt::Debug,
+        BaseTreeArity: Unsigned + fmt::Debug,
+        SubTreeArity: Unsigned + fmt::Debug,
+        TopTreeArity: Unsigned + fmt::Debug,
     >
     MerkleTree<E, A, LevelCacheStore<E, std::fs::File>, BaseTreeArity, SubTreeArity, TopTreeArity>
 {
@@ -321,11 +332,11 @@ impl<
 
 impl<
         E: Element,
-        A: Algorithm<E>,
+        A: Algorithm<E> + fmt::Debug,
         S: Store<E>,
-        BaseTreeArity: Unsigned,
-        SubTreeArity: Unsigned,
-        TopTreeArity: Unsigned,
+        BaseTreeArity: Unsigned + fmt::Debug,
+        SubTreeArity: Unsigned + fmt::Debug,
+        TopTreeArity: Unsigned + fmt::Debug,
     > MerkleTree<E, A, S, BaseTreeArity, SubTreeArity, TopTreeArity>
 {
     /// Creates new merkle from a sequence of hashes.
@@ -991,7 +1002,7 @@ impl<
 
     /// Generate merkle sub-tree inclusion proof for leaf `i` using
     /// partial trees built from cached data if needed at that layer.
-    fn gen_cached_top_tree_proof<Arity: Unsigned>(
+    fn gen_cached_top_tree_proof<Arity: Unsigned + fmt::Debug>(
         &self,
         i: usize,
         rows_to_discard: Option<usize>,
@@ -1039,7 +1050,7 @@ impl<
 
     /// Generate merkle sub-tree inclusion proof for leaf `i` using
     /// partial trees built from cached data if needed at that layer.
-    fn gen_cached_sub_tree_proof<Arity: Unsigned>(
+    fn gen_cached_sub_tree_proof<Arity: Unsigned + fmt::Debug>(
         &self,
         i: usize,
         rows_to_discard: Option<usize>,
@@ -1562,7 +1573,7 @@ where
 {
     fn from_par_iter<I>(par_iter: I) -> Result<Self>
     where
-        BaseTreeArity: Unsigned,
+        BaseTreeArity: Unsigned + fmt::Debug,
         I: IntoParallelIterator<Item = E>,
         I::Iter: IndexedParallelIterator;
 
@@ -1570,16 +1581,16 @@ where
     where
         I: IntoParallelIterator<Item = E>,
         I::Iter: IndexedParallelIterator,
-        BaseTreeArity: Unsigned;
+        BaseTreeArity: Unsigned + fmt::Debug;
 }
 
 impl<
         E: Element,
-        A: Algorithm<E>,
+        A: Algorithm<E> + fmt::Debug,
         S: Store<E>,
-        BaseTreeArity: Unsigned,
-        SubTreeArity: Unsigned,
-        TopTreeArity: Unsigned,
+        BaseTreeArity: Unsigned + fmt::Debug,
+        SubTreeArity: Unsigned + fmt::Debug,
+        TopTreeArity: Unsigned + fmt::Debug,
     > FromIndexedParallelIterator<E, BaseTreeArity>
     for MerkleTree<E, A, S, BaseTreeArity, SubTreeArity, TopTreeArity>
 {
@@ -1625,7 +1636,7 @@ impl<
     /// Creates new merkle tree from an iterator over hashable objects.
     fn from_par_iter_with_config<I>(into: I, config: StoreConfig) -> Result<Self>
     where
-        BaseTreeArity: Unsigned,
+        BaseTreeArity: Unsigned + fmt::Debug,
         I: IntoParallelIterator<Item = E>,
         I::Iter: IndexedParallelIterator,
     {
@@ -1685,11 +1696,11 @@ impl<
 
 impl<
         E: Element,
-        A: Algorithm<E>,
+        A: Algorithm<E> + fmt::Debug,
         S: Store<E>,
-        BaseTreeArity: Unsigned,
-        SubTreeArity: Unsigned,
-        TopTreeArity: Unsigned,
+        BaseTreeArity: Unsigned + fmt::Debug,
+        SubTreeArity: Unsigned + fmt::Debug,
+        TopTreeArity: Unsigned + fmt::Debug,
     > MerkleTree<E, A, S, BaseTreeArity, SubTreeArity, TopTreeArity>
 {
     /// Attempts to create a new merkle tree using hashable objects yielded by
@@ -1962,7 +1973,7 @@ pub fn populate_data<
     E: Element,
     A: Algorithm<E>,
     S: Store<E>,
-    BaseTreeArity: Unsigned,
+    BaseTreeArity: Unsigned + fmt::Debug,
     I: IntoIterator<Item = Result<E>>,
 >(
     data: &mut S,
@@ -2002,7 +2013,7 @@ where
     E: Element,
     A: Algorithm<E>,
     S: Store<E>,
-    BaseTreeArity: Unsigned,
+    BaseTreeArity: Unsigned + fmt::Debug,
     I: ParallelIterator<Item = E> + IndexedParallelIterator,
 {
     if !data.is_empty() {

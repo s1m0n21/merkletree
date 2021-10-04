@@ -86,7 +86,7 @@ impl Element for [u8; 16] {
     }
 }
 
-pub fn get_vec_tree_from_slice<U: Unsigned>(
+pub fn get_vec_tree_from_slice<U: Unsigned + fmt::Debug>(
     leafs: usize,
 ) -> MerkleTree<Item, XOR128, VecStore<Item>, U> {
     let mut x = Vec::with_capacity(leafs);
