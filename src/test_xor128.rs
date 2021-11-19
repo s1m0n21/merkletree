@@ -16,12 +16,10 @@ use std::fs::OpenOptions;
 use std::io::prelude::*;
 use std::os::unix::prelude::FileExt;
 use std::path::PathBuf;
-use typenum::marker_traits::Unsigned;
-use typenum::{U2, U3, U4, U5, U7, U8};
 
 use crate::test_common::{get_vec_tree_from_slice, BINARY_ARITY, OCT_ARITY, QUAD_ARITY, XOR128};
 
-fn test_vec_tree_from_slice<U: Unsigned>(
+fn test_vec_tree_from_slice<const U: usize>(
     leafs: usize,
     len: usize,
     row_count: usize,
@@ -31,7 +29,7 @@ fn test_vec_tree_from_slice<U: Unsigned>(
     for i in 0..leafs {
         x[i] = i * 93;
     }
-    let mt: MerkleTree<[u8; 16], XOR128, VecStore<_>, U> =
+    let mt: MerkleTree<[u8; 16], XOR128, VecStore<_>, U, 0, 0> =
         MerkleTree::from_data(&x).expect("failed to create tree from slice");
     assert_eq!(mt.len(), len);
     assert_eq!(mt.leafs(), leafs);
@@ -44,13 +42,13 @@ fn test_vec_tree_from_slice<U: Unsigned>(
     }
 }
 
-fn test_vec_tree_from_iter<U: Unsigned>(
+fn test_vec_tree_from_iter<const U: usize>(
     leafs: usize,
     len: usize,
     row_count: usize,
     num_challenges: usize,
 ) {
-    let branches = U::to_usize();
+    let branches = U;
     assert_eq!(
         len,
         get_merkle_tree_len(leafs, branches).expect("failed to get merkle len")
@@ -58,7 +56,7 @@ fn test_vec_tree_from_iter<U: Unsigned>(
     assert_eq!(row_count, get_merkle_tree_row_count(leafs, branches));
 
     let mut a = XOR128::new();
-    let mt: MerkleTree<[u8; 16], XOR128, VecStore<_>, U> =
+    let mt: MerkleTree<[u8; 16], XOR128, VecStore<_>, U, 0, 0> =
         MerkleTree::try_from_iter((0..leafs).map(|x| {
             a.reset();
             (x * 3).hash(&mut a);
@@ -78,10 +76,10 @@ fn test_vec_tree_from_iter<U: Unsigned>(
     }
 }
 
-pub fn get_disk_tree_from_slice<U: Unsigned>(
+pub fn get_disk_tree_from_slice<const U: usize>(
     leafs: usize,
     config: StoreConfig,
-) -> MerkleTree<[u8; 16], XOR128, DiskStore<[u8; 16]>, U> {
+) -> MerkleTree<[u8; 16], XOR128, DiskStore<[u8; 16]>, U, 0, 0> {
     let mut x = Vec::with_capacity(leafs);
     for i in 0..leafs {
         x.push(i * 93);
@@ -89,13 +87,13 @@ pub fn get_disk_tree_from_slice<U: Unsigned>(
     MerkleTree::from_data_with_config(&x, config).expect("failed to create tree from slice")
 }
 
-fn build_disk_tree_from_iter<U: Unsigned>(
+fn build_disk_tree_from_iter<const U: usize>(
     leafs: usize,
     len: usize,
     row_count: usize,
     config: &StoreConfig,
 ) {
-    let branches = U::to_usize();
+    let branches = U;
     assert_eq!(
         len,
         get_merkle_tree_len(leafs, branches).expect("failed to get merkle len")
@@ -105,30 +103,31 @@ fn build_disk_tree_from_iter<U: Unsigned>(
     let mut a = XOR128::new();
 
     // Construct and store an MT using a named DiskStore.
-    let mt: MerkleTree<[u8; 16], XOR128, DiskStore<_>, U> = MerkleTree::try_from_iter_with_config(
-        (0..leafs).map(|x| {
-            a.reset();
-            (x * 3).hash(&mut a);
-            leafs.hash(&mut a);
-            Ok(a.hash())
-        }),
-        config.clone(),
-    )
-    .expect("failed to create tree");
+    let mt: MerkleTree<[u8; 16], XOR128, DiskStore<_>, U, 0, 0> =
+        MerkleTree::try_from_iter_with_config(
+            (0..leafs).map(|x| {
+                a.reset();
+                (x * 3).hash(&mut a);
+                leafs.hash(&mut a);
+                Ok(a.hash())
+            }),
+            config.clone(),
+        )
+        .expect("failed to create tree");
 
     assert_eq!(mt.len(), len);
     assert_eq!(mt.leafs(), leafs);
     assert_eq!(mt.row_count(), row_count);
 }
 
-pub fn get_levelcache_tree_from_slice<U: Unsigned>(
+pub fn get_levelcache_tree_from_slice<const U: usize>(
     leafs: usize,
     len: usize,
     row_count: usize,
     config: &StoreConfig,
     replica_path: &PathBuf,
-) -> MerkleTree<[u8; 16], XOR128, LevelCacheStore<[u8; 16], std::fs::File>, U> {
-    let branches = U::to_usize();
+) -> MerkleTree<[u8; 16], XOR128, LevelCacheStore<[u8; 16], std::fs::File>, U, 0, 0> {
+    let branches = U;
     assert_eq!(
         len,
         get_merkle_tree_len(leafs, branches).expect("failed to get merkle len")
@@ -153,14 +152,14 @@ pub fn get_levelcache_tree_from_slice<U: Unsigned>(
     mt
 }
 
-fn get_levelcache_tree_from_iter<U: Unsigned>(
+fn get_levelcache_tree_from_iter<const U: usize>(
     leafs: usize,
     len: usize,
     row_count: usize,
     config: &StoreConfig,
     replica_path: &PathBuf,
-) -> MerkleTree<[u8; 16], XOR128, LevelCacheStore<[u8; 16], std::fs::File>, U> {
-    let branches = U::to_usize();
+) -> MerkleTree<[u8; 16], XOR128, LevelCacheStore<[u8; 16], std::fs::File>, U, 0, 0> {
+    let branches = U;
     assert_eq!(
         len,
         get_merkle_tree_len(leafs, branches).expect("failed to get merkle len")
@@ -170,7 +169,7 @@ fn get_levelcache_tree_from_iter<U: Unsigned>(
     let mut a = XOR128::new();
 
     // Construct and store an MT using a named LevelCacheStore.
-    let mut mt: MerkleTree<[u8; 16], XOR128, LevelCacheStore<_, std::fs::File>, U> =
+    let mut mt: MerkleTree<[u8; 16], XOR128, LevelCacheStore<_, std::fs::File>, U, 0, 0> =
         MerkleTree::try_from_iter_with_config(
             (0..leafs).map(|x| {
                 a.reset();
@@ -192,14 +191,14 @@ fn get_levelcache_tree_from_iter<U: Unsigned>(
     mt
 }
 
-fn test_disk_tree_from_iter<U: Unsigned>(
+fn test_disk_tree_from_iter<const U: usize>(
     leafs: usize,
     len: usize,
     row_count: usize,
     num_challenges: usize,
     rows_to_discard: usize,
 ) {
-    let branches = U::to_usize();
+    let branches = U;
 
     let name = format!("test_disk_tree_from_iter-{}-{}-{}", leafs, len, row_count);
     let temp_dir = tempdir::TempDir::new(&name).unwrap();
@@ -212,7 +211,7 @@ fn test_disk_tree_from_iter<U: Unsigned>(
     // the MT from it.
     assert!(DiskStore::<[u8; 16]>::is_consistent(len, branches, &config).unwrap());
     let store = DiskStore::new_from_disk(len, branches, &config).unwrap();
-    let mt_cache: MerkleTree<[u8; 16], XOR128, DiskStore<_>, U> =
+    let mt_cache: MerkleTree<[u8; 16], XOR128, DiskStore<_>, U, 0, 0> =
         MerkleTree::from_data_store(store, leafs).unwrap();
 
     assert_eq!(mt_cache.len(), len);
@@ -226,14 +225,14 @@ fn test_disk_tree_from_iter<U: Unsigned>(
     }
 }
 
-fn test_levelcache_v1_tree_from_iter<U: Unsigned>(
+fn test_levelcache_v1_tree_from_iter<const U: usize>(
     leafs: usize,
     len: usize,
     row_count: usize,
     num_challenges: usize,
     rows_to_discard: usize,
 ) {
-    let branches = U::to_usize();
+    let branches = U;
 
     let name = format!(
         "test_levelcache_v1_tree_from_iter-{}-{}-{}",
@@ -249,7 +248,7 @@ fn test_levelcache_v1_tree_from_iter<U: Unsigned>(
     // the MT from it.
     assert!(DiskStore::<[u8; 16]>::is_consistent(len, branches, &config).unwrap());
     let store = DiskStore::new_from_disk(len, branches, &config).unwrap();
-    let mut mt_cache: MerkleTree<[u8; 16], XOR128, DiskStore<_>, U> =
+    let mut mt_cache: MerkleTree<[u8; 16], XOR128, DiskStore<_>, U, 0, 0> =
         MerkleTree::from_data_store(store, leafs).unwrap();
 
     assert_eq!(mt_cache.len(), len);
@@ -269,7 +268,7 @@ fn test_levelcache_v1_tree_from_iter<U: Unsigned>(
     let level_cache_store: LevelCacheStore<[u8; 16], std::fs::File> =
         LevelCacheStore::new_from_disk(len, branches, &config).unwrap();
 
-    let mt_level_cache: MerkleTree<[u8; 16], XOR128, LevelCacheStore<_, _>, U> =
+    let mt_level_cache: MerkleTree<[u8; 16], XOR128, LevelCacheStore<_, _>, U, 0, 0> =
         MerkleTree::from_data_store(level_cache_store, leafs)
             .expect("Failed to create MT from data store");
 
@@ -287,14 +286,14 @@ fn test_levelcache_v1_tree_from_iter<U: Unsigned>(
     }
 }
 
-fn test_levelcache_direct_build_from_slice<U: Unsigned>(
+fn test_levelcache_direct_build_from_slice<const U: usize>(
     leafs: usize,
     len: usize,
     row_count: usize,
     num_challenges: usize,
     rows_to_discard: Option<usize>,
 ) {
-    assert!(is_merkle_tree_size_valid(leafs, U::to_usize()));
+    assert!(is_merkle_tree_size_valid(leafs, U));
 
     let test_name = "test_levelcache_direct_build_from_slice";
     let replica = format!("{}-{}-{}-{}-replica", test_name, leafs, len, row_count);
@@ -303,7 +302,7 @@ fn test_levelcache_direct_build_from_slice<U: Unsigned>(
 
     let rows_to_discard = match rows_to_discard {
         Some(x) => x,
-        None => StoreConfig::default_rows_to_discard(leafs, U::to_usize()),
+        None => StoreConfig::default_rows_to_discard(leafs, U),
     };
     // Construct and store an MT using a named DiskStore.
     let config = StoreConfig::new(temp_dir.path(), String::from(&replica), rows_to_discard);
@@ -327,14 +326,14 @@ fn test_levelcache_direct_build_from_slice<U: Unsigned>(
     }
 }
 
-fn test_levelcache_direct_build_from_iter<U: Unsigned>(
+fn test_levelcache_direct_build_from_iter<const U: usize>(
     leafs: usize,
     len: usize,
     row_count: usize,
     num_challenges: usize,
     rows_to_discard: Option<usize>,
 ) {
-    assert!(is_merkle_tree_size_valid(leafs, U::to_usize()));
+    assert!(is_merkle_tree_size_valid(leafs, U));
 
     let test_name = "test_levelcache_direct_build_from_iter";
     let replica = format!("{}-{}-{}-{}-replica", test_name, leafs, len, row_count);
@@ -343,7 +342,7 @@ fn test_levelcache_direct_build_from_iter<U: Unsigned>(
 
     let rows_to_discard = match rows_to_discard {
         Some(x) => x,
-        None => StoreConfig::default_rows_to_discard(leafs, U::to_usize()),
+        None => StoreConfig::default_rows_to_discard(leafs, U),
     };
     // Construct and store an MT using a named DiskStore.
     let config = StoreConfig::new(temp_dir.path(), String::from(&replica), rows_to_discard);
@@ -372,9 +371,9 @@ fn test_levelcache_direct_build_from_iter<U: Unsigned>(
 fn test_levelcache_direct_build_quad() {
     let (leafs, len, row_count, num_challenges) = { (1048576, 1398101, 11, 2048) };
 
-    test_levelcache_direct_build_from_iter::<U4>(leafs, len, row_count, num_challenges, None);
+    test_levelcache_direct_build_from_iter::<4>(leafs, len, row_count, num_challenges, None);
 
-    test_levelcache_direct_build_from_slice::<U4>(leafs, len, row_count, num_challenges, None);
+    test_levelcache_direct_build_from_slice::<4>(leafs, len, row_count, num_challenges, None);
 }
 
 #[test]
@@ -383,7 +382,7 @@ fn test_levelcache_direct_build_octo() {
     let (leafs, len, row_count, num_challenges, rows_to_discard) =
         { (262144, 299593, 7, 262144, 2) };
 
-    test_levelcache_direct_build_from_iter::<U8>(
+    test_levelcache_direct_build_from_iter::<8>(
         leafs,
         len,
         row_count,
@@ -391,7 +390,7 @@ fn test_levelcache_direct_build_octo() {
         Some(rows_to_discard),
     );
 
-    test_levelcache_direct_build_from_slice::<U8>(
+    test_levelcache_direct_build_from_slice::<8>(
         leafs,
         len,
         row_count,
@@ -416,7 +415,7 @@ fn test_hasher_light() {
 #[test]
 fn test_vec_from_slice() {
     let x = [String::from("ars"), String::from("zxc")];
-    let mt: MerkleTree<[u8; 16], XOR128, VecStore<_>> =
+    let mt: MerkleTree<[u8; 16], XOR128, VecStore<_>, 2, 0, 0> =
         MerkleTree::from_data(&x).expect("failed to create tree");
     assert_eq!(
         mt.read_range(0, 3).unwrap(),
@@ -442,17 +441,17 @@ fn test_vec_from_slice() {
 
 // B: Branching factor of sub-trees
 // N: Branching factor of top-layer
-fn test_compound_tree_from_slices<B: Unsigned, N: Unsigned>(sub_tree_leafs: usize) {
-    let branches = B::to_usize();
+fn test_compound_tree_from_slices<const B: usize, const N: usize>(sub_tree_leafs: usize) {
+    let branches = B;
     assert!(is_merkle_tree_size_valid(sub_tree_leafs, branches));
 
-    let sub_tree_count = N::to_usize();
+    let sub_tree_count = N;
     let mut sub_trees = Vec::with_capacity(sub_tree_count);
     for _ in 0..sub_tree_count {
         sub_trees.push(get_vec_tree_from_slice::<B>(sub_tree_leafs));
     }
 
-    let tree: MerkleTree<[u8; 16], XOR128, VecStore<_>, B, N> =
+    let tree: MerkleTree<[u8; 16], XOR128, VecStore<_>, B, N, 0> =
         MerkleTree::from_trees(sub_trees).expect("Failed to build compound tree from sub trees");
 
     assert_eq!(
@@ -475,11 +474,11 @@ fn test_compound_tree_from_slices<B: Unsigned, N: Unsigned>(sub_tree_leafs: usiz
 
 // B: Branching factor of sub-trees
 // N: Branching factor of top-layer
-fn test_compound_tree_from_store_configs<B: Unsigned, N: Unsigned>(sub_tree_leafs: usize) {
-    let branches = B::to_usize();
+fn test_compound_tree_from_store_configs<const B: usize, const N: usize>(sub_tree_leafs: usize) {
+    let branches = B;
     assert!(is_merkle_tree_size_valid(sub_tree_leafs, branches));
 
-    let sub_tree_count = N::to_usize();
+    let sub_tree_count = N;
     let mut sub_tree_configs = Vec::with_capacity(sub_tree_count);
 
     let temp_dir = tempdir::TempDir::new("test_read_into").unwrap();
@@ -494,7 +493,7 @@ fn test_compound_tree_from_store_configs<B: Unsigned, N: Unsigned>(sub_tree_leaf
         sub_tree_configs.push(config);
     }
 
-    let tree: MerkleTree<[u8; 16], XOR128, DiskStore<_>, B, N> =
+    let tree: MerkleTree<[u8; 16], XOR128, DiskStore<_>, B, N, 0> =
         MerkleTree::from_store_configs(sub_tree_leafs, &sub_tree_configs)
             .expect("Failed to build compound tree");
 
@@ -518,13 +517,13 @@ fn test_compound_tree_from_store_configs<B: Unsigned, N: Unsigned>(sub_tree_leaf
 
 // B: Branching factor of sub-trees
 // N: Branching factor of top-layer
-fn test_compound_levelcache_tree_from_store_configs<B: Unsigned, N: Unsigned>(
+fn test_compound_levelcache_tree_from_store_configs<const B: usize, const N: usize>(
     sub_tree_leafs: usize,
 ) {
-    let branches = B::to_usize();
+    let branches = B;
     assert!(is_merkle_tree_size_valid(sub_tree_leafs, branches));
 
-    let sub_tree_count = N::to_usize();
+    let sub_tree_count = N;
     let mut replica_offsets = Vec::with_capacity(sub_tree_count);
     let mut sub_tree_configs = Vec::with_capacity(sub_tree_count);
 
@@ -589,7 +588,7 @@ fn test_compound_levelcache_tree_from_store_configs<B: Unsigned, N: Unsigned>(
 
     let replica_config = ReplicaConfig::new(replica_path, replica_offsets);
     let tree =
-        MerkleTree::<[u8; 16], XOR128, LevelCacheStore<[u8; 16], std::fs::File>, B, N>::from_store_configs_and_replica(sub_tree_leafs, &sub_tree_configs, &replica_config)
+        MerkleTree::<[u8; 16], XOR128, LevelCacheStore<[u8; 16], std::fs::File>, B, N, 0>::from_store_configs_and_replica(sub_tree_leafs, &sub_tree_configs, &replica_config)
             .expect("Failed to build compound levelcache tree");
 
     assert_eq!(
@@ -613,73 +612,73 @@ fn test_compound_levelcache_tree_from_store_configs<B: Unsigned, N: Unsigned>(
 #[test]
 fn test_compound_quad_trees_from_slices() {
     // 3 quad trees each with 4 leafs joined by top layer
-    test_compound_tree_from_slices::<U4, U3>(4);
+    test_compound_tree_from_slices::<4, 3>(4);
 
     // 5 quad trees each with 16 leafs joined by top layer
-    test_compound_tree_from_slices::<U4, U5>(16);
+    test_compound_tree_from_slices::<4, 5>(16);
 
     // 7 quad trees each with 64 leafs joined by top layer
-    test_compound_tree_from_slices::<U4, U7>(64);
+    test_compound_tree_from_slices::<4, 7>(64);
 }
 
 #[test]
 fn test_compound_quad_trees_from_store_configs() {
     // 3 quad trees each with 4 leafs joined by top layer
-    test_compound_tree_from_store_configs::<U4, U3>(4);
+    test_compound_tree_from_store_configs::<4, 3>(4);
 
     // 5 quad trees each with 16 leafs joined by top layer
-    test_compound_tree_from_store_configs::<U4, U5>(16);
+    test_compound_tree_from_store_configs::<4, 5>(16);
 
     // 7 quad trees each with 64 leafs joined by top layer
-    test_compound_tree_from_store_configs::<U4, U7>(64);
+    test_compound_tree_from_store_configs::<4, 7>(64);
 }
 
 #[test]
 fn test_compound_levelcache_quad_trees_from_store_configs() {
     // 3 quad trees each with 16 leafs joined by top layer
-    test_compound_levelcache_tree_from_store_configs::<U4, U3>(16);
+    test_compound_levelcache_tree_from_store_configs::<4, 3>(16);
 
     // 5 quad trees each with 64 leafs joined by top layer
-    test_compound_levelcache_tree_from_store_configs::<U4, U5>(64);
+    test_compound_levelcache_tree_from_store_configs::<4, 5>(64);
 
     // 7 quad trees each with 256 leafs joined by top layer
-    test_compound_levelcache_tree_from_store_configs::<U4, U7>(256);
+    test_compound_levelcache_tree_from_store_configs::<4, 7>(256);
 }
 
 #[test]
 fn test_compound_octrees_from_slices() {
     // 3 octrees each with 8 leafs joined by top layer
-    test_compound_tree_from_slices::<U8, U3>(8);
+    test_compound_tree_from_slices::<8, 3>(8);
 
     // 5 octrees each with 64 leafs joined by top layer
-    test_compound_tree_from_slices::<U8, U5>(64);
+    test_compound_tree_from_slices::<8, 5>(64);
 
     // 7 octrees each with 320 leafs joined by top layer
-    test_compound_tree_from_slices::<U8, U7>(512);
+    test_compound_tree_from_slices::<8, 7>(512);
 }
 
 #[test]
 fn test_compound_octrees_from_store_configs() {
     // 3 octrees each with 8 leafs joined by top layer
-    test_compound_tree_from_store_configs::<U8, U3>(8);
+    test_compound_tree_from_store_configs::<8, 3>(8);
 
     // 5 octrees each with 64 leafs joined by top layer
-    test_compound_tree_from_store_configs::<U8, U5>(64);
+    test_compound_tree_from_store_configs::<8, 5>(64);
 
     // 7 octrees each with 320 leafs joined by top layer
-    test_compound_tree_from_store_configs::<U8, U7>(512);
+    test_compound_tree_from_store_configs::<8, 7>(512);
 }
 
 #[test]
 fn test_compound_levelcache_octrees_trees_from_store_configs() {
     // 3 octrees trees each with 64 leafs joined by top layer
-    test_compound_levelcache_tree_from_store_configs::<U8, U3>(64);
+    test_compound_levelcache_tree_from_store_configs::<8, 3>(64);
 
     // 5 octrees trees each with 256 leafs joined by top layer
-    test_compound_levelcache_tree_from_store_configs::<U8, U5>(512);
+    test_compound_levelcache_tree_from_store_configs::<8, 5>(512);
 
     // 7 octrees trees each with 2048 leafs joined by top layer
-    test_compound_levelcache_tree_from_store_configs::<U8, U7>(4096);
+    test_compound_levelcache_tree_from_store_configs::<8, 7>(4096);
 }
 
 #[test]
@@ -687,11 +686,11 @@ fn test_compound_quad_tree_from_slices() {
     // This tests a compound merkle tree that consists of 3 quad trees
     // with 4 leafs each.  The compound tree will have 12 leaves.
     let leafs = 4;
-    let mt1 = get_vec_tree_from_slice::<U4>(leafs);
-    let mt2 = get_vec_tree_from_slice::<U4>(leafs);
-    let mt3 = get_vec_tree_from_slice::<U4>(leafs);
+    let mt1 = get_vec_tree_from_slice::<4>(leafs);
+    let mt2 = get_vec_tree_from_slice::<4>(leafs);
+    let mt3 = get_vec_tree_from_slice::<4>(leafs);
 
-    let tree: MerkleTree<[u8; 16], XOR128, VecStore<_>, U4, U3> =
+    let tree: MerkleTree<[u8; 16], XOR128, VecStore<_>, 4, 3, 0> =
         MerkleTree::from_trees(vec![mt1, mt2, mt3]).expect("Failed to build compound tree");
     assert_eq!(tree.len(), 16);
     assert_eq!(tree.leafs(), 12);
@@ -708,13 +707,13 @@ fn test_compound_octree_from_slices() {
     // This tests a compound merkle tree that consists of 5 octrees
     // with 64 leafs each.  The compound tree will have 320 leaves.
     let leafs = 64;
-    let mt1 = get_vec_tree_from_slice::<U8>(leafs);
-    let mt2 = get_vec_tree_from_slice::<U8>(leafs);
-    let mt3 = get_vec_tree_from_slice::<U8>(leafs);
-    let mt4 = get_vec_tree_from_slice::<U8>(leafs);
-    let mt5 = get_vec_tree_from_slice::<U8>(leafs);
+    let mt1 = get_vec_tree_from_slice::<8>(leafs);
+    let mt2 = get_vec_tree_from_slice::<8>(leafs);
+    let mt3 = get_vec_tree_from_slice::<8>(leafs);
+    let mt4 = get_vec_tree_from_slice::<8>(leafs);
+    let mt5 = get_vec_tree_from_slice::<8>(leafs);
 
-    let tree: MerkleTree<[u8; 16], XOR128, VecStore<_>, U8, U5> =
+    let tree: MerkleTree<[u8; 16], XOR128, VecStore<_>, 8, 5, 0> =
         MerkleTree::from_trees(vec![mt1, mt2, mt3, mt4, mt5])
             .expect("Failed to build compound tree");
 
@@ -731,20 +730,20 @@ fn test_compound_octree_from_slices() {
 #[test]
 fn test_quad_from_slice() {
     let (leafs, len, row_count, num_challenges) = { (16, 21, 3, 16) };
-    test_vec_tree_from_slice::<U4>(leafs, len, row_count, num_challenges);
+    test_vec_tree_from_slice::<4>(leafs, len, row_count, num_challenges);
 }
 
 #[test]
 fn test_quad_from_iter() {
     let (leafs, len, row_count, num_challenges) = { (16384, 21845, 8, 16384) };
-    test_vec_tree_from_iter::<U4>(leafs, len, row_count, num_challenges);
+    test_vec_tree_from_iter::<4>(leafs, len, row_count, num_challenges);
 }
 
 #[test]
 #[ignore]
 fn test_xlarge_quad_with_disk_store() {
     let (leafs, len, row_count, num_challenges) = { (1073741824, 1431655765, 16, 2048) };
-    test_disk_tree_from_iter::<U4>(
+    test_disk_tree_from_iter::<4>(
         leafs,
         len,
         row_count,
@@ -757,7 +756,7 @@ fn test_xlarge_quad_with_disk_store() {
 fn test_small_quad_with_partial_cache() {
     let (leafs, len, row_count, num_challenges) = { (256, 341, 5, 256) };
     for rows_to_discard in 1..row_count - 1 {
-        test_levelcache_v1_tree_from_iter::<U4>(
+        test_levelcache_v1_tree_from_iter::<4>(
             leafs,
             len,
             row_count,
@@ -772,7 +771,7 @@ fn test_small_quad_with_partial_cache() {
 fn test_large_quad_with_partial_cache() {
     let (leafs, len, row_count, num_challenges) = { (1048576, 1398101, 11, 2048) };
     for rows_to_discard in 5..7 {
-        test_levelcache_v1_tree_from_iter::<U4>(
+        test_levelcache_v1_tree_from_iter::<4>(
             leafs,
             len,
             row_count,
@@ -790,27 +789,27 @@ fn test_large_quad_with_partial_cache() {
 fn test_large_quad_with_partial_cache_full() {
     let (leafs, len, row_count, num_challenges, rows_to_discard) =
         { (1048576, 1398101, 11, 1048576, 5) };
-    test_levelcache_v1_tree_from_iter::<U4>(leafs, len, row_count, num_challenges, rows_to_discard);
+    test_levelcache_v1_tree_from_iter::<4>(leafs, len, row_count, num_challenges, rows_to_discard);
 }
 
 #[test]
 fn test_octo_from_iter() {
     let (leafs, len, row_count, num_challenges) = { (64, 73, 3, 64) };
-    test_vec_tree_from_iter::<U8>(leafs, len, row_count, num_challenges);
+    test_vec_tree_from_iter::<8>(leafs, len, row_count, num_challenges);
 }
 
 #[test]
 #[ignore]
 fn test_large_octo_from_iter() {
     let (leafs, len, row_count, num_challenges) = { (16777216, 19173961, 9, 1024) };
-    test_vec_tree_from_iter::<U8>(leafs, len, row_count, num_challenges);
+    test_vec_tree_from_iter::<8>(leafs, len, row_count, num_challenges);
 }
 
 #[test]
 #[ignore]
 fn test_large_octo_with_disk_store() {
     let (leafs, len, row_count, num_challenges) = { (2097152, 2396745, 8, 2048) };
-    test_disk_tree_from_iter::<U8>(
+    test_disk_tree_from_iter::<8>(
         leafs,
         len,
         row_count,
@@ -824,7 +823,7 @@ fn test_large_octo_with_disk_store() {
 fn test_large_octo_with_partial_cache() {
     let (leafs, len, row_count, num_challenges) = { (2097152, 2396745, 8, 2048) };
     for rows_to_discard in 5..7 {
-        test_levelcache_v1_tree_from_iter::<U8>(
+        test_levelcache_v1_tree_from_iter::<8>(
             leafs,
             len,
             row_count,
@@ -842,7 +841,7 @@ fn test_large_octo_with_partial_cache() {
 fn test_large_octo_with_partial_cache_full() {
     let (leafs, len, row_count, num_challenges, rows_to_discard) =
         { (2097152, 2396745, 8, 2048, 3) };
-    test_levelcache_v1_tree_from_iter::<U8>(
+    test_levelcache_v1_tree_from_iter::<8>(
         leafs,
         len,
         row_count,
@@ -858,7 +857,7 @@ fn test_large_octo_with_partial_cache_full() {
 #[ignore]
 fn test_xlarge_octo_with_disk_store() {
     let (leafs, len, row_count, num_challenges) = { (1073741824, 1227133513, 11, 2048) };
-    test_disk_tree_from_iter::<U8>(
+    test_disk_tree_from_iter::<8>(
         leafs,
         len,
         row_count,
@@ -872,7 +871,7 @@ fn test_xlarge_octo_with_disk_store() {
 fn test_xlarge_octo_with_partial_cache() {
     let (leafs, len, row_count, num_challenges, rows_to_discard) =
         { (1073741824, 1227133513, 11, 2048, 6) };
-    test_levelcache_v1_tree_from_iter::<U8>(
+    test_levelcache_v1_tree_from_iter::<8>(
         leafs,
         len,
         row_count,
@@ -887,7 +886,7 @@ fn test_xlarge_octo_with_partial_cache() {
 #[test]
 fn test_read_into() {
     let x = [String::from("ars"), String::from("zxc")];
-    let mt: MerkleTree<[u8; 16], XOR128, VecStore<_>> =
+    let mt: MerkleTree<[u8; 16], XOR128, VecStore<_>, 2, 0, 0> =
         MerkleTree::from_data(&x).expect("failed to create tree");
     let target_data = [
         [0, 97, 114, 115, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
@@ -908,7 +907,7 @@ fn test_read_into() {
         StoreConfig::default_rows_to_discard(x.len(), BINARY_ARITY),
     );
 
-    let mt2: MerkleTree<[u8; 16], XOR128, DiskStore<_>> =
+    let mt2: MerkleTree<[u8; 16], XOR128, DiskStore<_>, 2, 0, 0> =
         MerkleTree::from_data_with_config(&x, config).expect("failed to create tree");
     for (pos, &data) in target_data.iter().enumerate() {
         mt2.read_into(pos, &mut read_buffer).unwrap();
@@ -920,7 +919,7 @@ fn test_read_into() {
 fn test_from_iter() {
     let mut a = XOR128::new();
 
-    let mt: MerkleTree<[u8; 16], XOR128, VecStore<_>> =
+    let mt: MerkleTree<[u8; 16], XOR128, VecStore<_>, 2, 0, 0> =
         MerkleTree::try_from_iter(["a", "b", "c", "d"].iter().map(|x| {
             a.reset();
             x.hash(&mut a);
@@ -1009,17 +1008,18 @@ fn test_simple_tree() {
     // pow 2 only supported
     for items in [2, 4].iter() {
         let mut a = XOR128::new();
-        let mt_base: MerkleTree<[u8; 16], XOR128, VecStore<_>> = MerkleTree::try_from_iter(
-            [1, 2, 3, 4, 5, 6, 7, 8]
-                .iter()
-                .map(|x| {
-                    a.reset();
-                    x.hash(&mut a);
-                    Ok(a.hash())
-                })
-                .take(*items),
-        )
-        .unwrap();
+        let mt_base: MerkleTree<[u8; 16], XOR128, VecStore<_>, 2, 0, 0> =
+            MerkleTree::try_from_iter(
+                [1, 2, 3, 4, 5, 6, 7, 8]
+                    .iter()
+                    .map(|x| {
+                        a.reset();
+                        x.hash(&mut a);
+                        Ok(a.hash())
+                    })
+                    .take(*items),
+            )
+            .unwrap();
 
         assert_eq!(mt_base.leafs(), *items);
         assert_eq!(
@@ -1053,7 +1053,7 @@ fn test_simple_tree() {
             .flatten()
             .collect();
         {
-            let mt1: MerkleTree<[u8; 16], XOR128, VecStore<_>> =
+            let mt1: MerkleTree<[u8; 16], XOR128, VecStore<_>, 2, 0, 0> =
                 MerkleTree::from_byte_slice(&leafs).unwrap();
             assert_eq!(mt1.leafs(), *items);
             assert_eq!(
@@ -1072,7 +1072,7 @@ fn test_simple_tree() {
         }
 
         {
-            let mt2: MerkleTree<[u8; 16], XOR128, DiskStore<_>> =
+            let mt2: MerkleTree<[u8; 16], XOR128, DiskStore<_>, 2, 0, 0> =
                 MerkleTree::from_byte_slice(&leafs).unwrap();
             assert_eq!(mt2.leafs(), *items);
             assert_eq!(
@@ -1090,13 +1090,13 @@ fn test_simple_tree() {
 #[test]
 fn test_large_tree() {
     let count = SMALL_TREE_BUILD * 2;
-    test_vec_tree_from_iter::<U2>(
+    test_vec_tree_from_iter::<2>(
         count,
         get_merkle_tree_len(count, BINARY_ARITY).expect("failed to get merkle len"),
         get_merkle_tree_row_count(count, BINARY_ARITY),
         count,
     );
-    test_disk_tree_from_iter::<U2>(
+    test_disk_tree_from_iter::<2>(
         count,
         get_merkle_tree_len(count, BINARY_ARITY).expect("failed to get merkle len"),
         get_merkle_tree_row_count(count, BINARY_ARITY),
@@ -1110,7 +1110,7 @@ fn test_large_tree_disk() {
     let a = XOR128::new();
     let count = SMALL_TREE_BUILD * SMALL_TREE_BUILD * 8;
 
-    let mt_disk: MerkleTree<[u8; 16], XOR128, DiskStore<_>> =
+    let mt_disk: MerkleTree<[u8; 16], XOR128, DiskStore<_>, 2, 0, 0> =
         MerkleTree::from_par_iter((0..count).into_par_iter().map(|x| {
             let mut xor_128 = a.clone();
             xor_128.reset();
@@ -1132,7 +1132,7 @@ fn test_mmap_tree() {
     let mut a = XOR128::new();
     let count = SMALL_TREE_BUILD * SMALL_TREE_BUILD * 128;
 
-    let mut mt_map: MerkleTree<[u8; 16], XOR128, MmapStore<_>> =
+    let mut mt_map: MerkleTree<[u8; 16], XOR128, MmapStore<_>, 2, 0, 0> =
         MerkleTree::try_from_iter((0..count).map(|x| {
             a.reset();
             x.hash(&mut a);
@@ -1179,7 +1179,7 @@ fn test_mmap_tree() {
 fn test_level_cache_tree_v1() {
     let rows_to_discard = 4;
     let count = SMALL_TREE_BUILD * 2;
-    test_levelcache_v1_tree_from_iter::<U2>(
+    test_levelcache_v1_tree_from_iter::<2>(
         count,
         get_merkle_tree_len(count, BINARY_ARITY).expect("failed to get merkle len"),
         get_merkle_tree_row_count(count, BINARY_ARITY),
@@ -1203,7 +1203,7 @@ fn test_level_cache_tree_v2() {
         StoreConfig::default_rows_to_discard(count, BINARY_ARITY),
     );
 
-    let mut mt_disk: MerkleTree<[u8; 16], XOR128, DiskStore<_>> =
+    let mut mt_disk: MerkleTree<[u8; 16], XOR128, DiskStore<_>, 2, 0, 0> =
         MerkleTree::from_par_iter_with_config(
             (0..count).into_par_iter().map(|x| {
                 let mut xor_128 = a.clone();
@@ -1268,7 +1268,7 @@ fn test_level_cache_tree_v2() {
         )
         .unwrap();
 
-    let mt_level_cache: MerkleTree<[u8; 16], XOR128, LevelCacheStore<_, _>> =
+    let mt_level_cache: MerkleTree<[u8; 16], XOR128, LevelCacheStore<_, _>, 2, 0, 0> =
         MerkleTree::from_data_store(level_cache_store, count)
             .expect("Failed to create MT from data store");
     assert_eq!(
@@ -1314,7 +1314,7 @@ fn test_various_trees_with_partial_cache_v2_only() {
                 std::cmp::min(i, StoreConfig::default_rows_to_discard(count, BINARY_ARITY)),
             );
 
-            let mut mt_cache: MerkleTree<[u8; 16], XOR128, DiskStore<_>> =
+            let mut mt_cache: MerkleTree<[u8; 16], XOR128, DiskStore<_>, 2, 0, 0> =
                 MerkleTree::try_from_iter_with_config(
                     (0..count).map(|x| {
                         a.reset();
@@ -1340,7 +1340,7 @@ fn test_various_trees_with_partial_cache_v2_only() {
                 &config,
             )
             .unwrap();
-            let mt_cache2: MerkleTree<[u8; 16], XOR128, DiskStore<_>> =
+            let mt_cache2: MerkleTree<[u8; 16], XOR128, DiskStore<_>, 2, 0, 0> =
                 MerkleTree::from_data_store(store, count).unwrap();
 
             assert_eq!(mt_cache.len(), mt_cache2.len());
@@ -1415,7 +1415,7 @@ fn test_various_trees_with_partial_cache_v2_only() {
                 )
                 .unwrap();
 
-            let mt_level_cache: MerkleTree<[u8; 16], XOR128, LevelCacheStore<_, _>> =
+            let mt_level_cache: MerkleTree<[u8; 16], XOR128, LevelCacheStore<_, _>, 2, 0, 0> =
                 MerkleTree::from_data_store(level_cache_store, count)
                     .expect("Failed to revive LevelCacheStore after compaction");
 

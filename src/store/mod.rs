@@ -12,7 +12,6 @@ use rayon::iter::plumbing::*;
 use rayon::iter::*;
 use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
-use typenum::marker_traits::Unsigned;
 
 use crate::hash::Algorithm;
 use crate::merkle::{get_merkle_tree_row_count, log2_pow2, next_pow2, Element};
@@ -257,7 +256,7 @@ pub trait Store<E: Element>: std::fmt::Debug + Send + Sync + Sized {
     }
 
     #[inline]
-    fn build_small_tree<A: Algorithm<E>, U: Unsigned>(
+    fn build_small_tree<A: Algorithm<E>, const U: usize>(
         &mut self,
         leafs: usize,
         row_count: usize,
@@ -267,7 +266,7 @@ pub trait Store<E: Element>: std::fmt::Debug + Send + Sync + Sized {
         let mut level: usize = 0;
         let mut width = leafs;
         let mut level_node_index = 0;
-        let branches = U::to_usize();
+        let branches = U;
         let shift = log2_pow2(branches);
 
         while width > 1 {
@@ -305,14 +304,14 @@ pub trait Store<E: Element>: std::fmt::Debug + Send + Sync + Sized {
         self.last()
     }
 
-    fn process_layer<A: Algorithm<E>, U: Unsigned>(
+    fn process_layer<A: Algorithm<E>, const U: usize>(
         &mut self,
         width: usize,
         level: usize,
         read_start: usize,
         write_start: usize,
     ) -> Result<()> {
-        let branches = U::to_usize();
+        let branches = U;
         let data_lock = Arc::new(RwLock::new(self));
 
         // Allocate `width` indexes during operation (which is a negligible memory bloat
@@ -365,13 +364,13 @@ pub trait Store<E: Element>: std::fmt::Debug + Send + Sync + Sized {
     }
 
     // Default merkle-tree build, based on store type.
-    fn build<A: Algorithm<E>, U: Unsigned>(
+    fn build<A: Algorithm<E>, const U: usize>(
         &mut self,
         leafs: usize,
         row_count: usize,
         _config: Option<StoreConfig>,
     ) -> Result<E> {
-        let branches = U::to_usize();
+        let branches = U;
         ensure!(
             next_pow2(branches) == branches,
             "branches MUST be a power of 2"

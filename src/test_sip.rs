@@ -97,7 +97,7 @@ fn test_simple_tree() {
     ];
     for items in [2, 4].iter() {
         let mut a = DefaultHasher::new();
-        let mt: MerkleTree<Item, DefaultHasher, VecStore<_>> = MerkleTree::try_from_iter(
+        let mt: MerkleTree<Item, DefaultHasher, VecStore<_>, 2, 0, 0> = MerkleTree::try_from_iter(
             [1, 2, 3, 4, 5, 6, 7, 8]
                 .iter()
                 .map(|x| {

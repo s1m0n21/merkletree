@@ -3,7 +3,6 @@ use crate::merkle::{Element, MerkleTree};
 use crate::store::VecStore;
 use std::fmt;
 use std::hash::Hasher;
-use typenum::marker_traits::Unsigned;
 
 pub const SIZE: usize = 0x10;
 
@@ -86,9 +85,9 @@ impl Element for [u8; 16] {
     }
 }
 
-pub fn get_vec_tree_from_slice<U: Unsigned>(
+pub fn get_vec_tree_from_slice<const U: usize>(
     leafs: usize,
-) -> MerkleTree<Item, XOR128, VecStore<Item>, U> {
+) -> MerkleTree<Item, XOR128, VecStore<Item>, U, 0, 0> {
     let mut x = Vec::with_capacity(leafs);
     for i in 0..leafs {
         x.push(i * 93);

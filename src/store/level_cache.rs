@@ -13,7 +13,6 @@ use positioned_io::{ReadAt, WriteAt};
 use rayon::iter::*;
 use rayon::prelude::*;
 use tempfile::tempfile;
-use typenum::marker_traits::Unsigned;
 
 use crate::hash::Algorithm;
 use crate::merkle::{
@@ -423,7 +422,7 @@ impl<E: Element, R: Read + Send + Sync> Store<E> for LevelCacheStore<E, R> {
     }
 
     #[allow(unsafe_code)]
-    fn process_layer<A: Algorithm<E>, U: Unsigned>(
+    fn process_layer<A: Algorithm<E>, const U: usize>(
         &mut self,
         width: usize,
         level: usize,
@@ -441,7 +440,7 @@ impl<E: Element, R: Read + Send + Sync> Store<E> for LevelCacheStore<E, R> {
         }?;
 
         let data_lock = Arc::new(RwLock::new(self));
-        let branches = U::to_usize();
+        let branches = U;
         let shift = log2_pow2(branches);
         let write_chunk_width = (BUILD_CHUNK_NODES >> shift) * E::byte_len();
 
@@ -484,13 +483,13 @@ impl<E: Element, R: Read + Send + Sync> Store<E> for LevelCacheStore<E, R> {
     }
 
     // LevelCacheStore specific merkle-tree build.
-    fn build<A: Algorithm<E>, U: Unsigned>(
+    fn build<A: Algorithm<E>, const U: usize>(
         &mut self,
         leafs: usize,
         row_count: usize,
         config: Option<StoreConfig>,
     ) -> Result<E> {
-        let branches = U::to_usize();
+        let branches = U;
         ensure!(
             next_pow2(branches) == branches,
             "branches MUST be a power of 2"

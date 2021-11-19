@@ -58,7 +58,7 @@ impl Algorithm<Item> for CMH {
 #[test]
 fn test_custom_merkle_hasher() {
     let mut a = CMH::new();
-    let mt: MerkleTree<Item, CMH, VecStore<_>> =
+    let mt: MerkleTree<Item, CMH, VecStore<_>, 2, 0, 0> =
         MerkleTree::try_from_iter([1, 2, 3, 4, 5, 6, 7, 8].iter().map(|x| {
             a.reset();
             x.hash(&mut a);

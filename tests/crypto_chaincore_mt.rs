@@ -9,7 +9,6 @@ use merkletree::proof::Proof;
 use merkletree::store::VecStore;
 use std::fmt;
 use std::hash::Hasher;
-use typenum::U0;
 
 #[derive(Clone)]
 struct CryptoChainCoreAlgorithm(Sha3);
@@ -102,11 +101,11 @@ fn test_merkle_tree_validate_data() {
     let data = vec![1, 2, 3, 4];
     let proof_item = data[0];
 
-    let t: MerkleTree<CryptoSHA256Hash, CryptoChainCoreAlgorithm, VecStore<_>> =
+    let t: MerkleTree<CryptoSHA256Hash, CryptoChainCoreAlgorithm, VecStore<_>, 2, 0, 0> =
         MerkleTree::from_data(data).unwrap();
     let generated_proof = t.gen_proof(0).unwrap();
 
-    let proof: Proof<CryptoSHA256Hash> = Proof::new::<U0, U0>(
+    let proof: Proof<CryptoSHA256Hash, 0> = Proof::new::<0, 0>(
         None,
         generated_proof.lemma().to_owned(),
         generated_proof.path().to_owned(),
