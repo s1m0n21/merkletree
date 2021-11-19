@@ -142,12 +142,13 @@ fn bench_crypto_sha512(b: &mut Bencher) {
 
 #[bench]
 fn bench_crypto_sha512_from_data_5(b: &mut Bencher) {
-    b.iter(|| MerkleTree::<Hash512, A, VecStore<_>>::try_from_iter(tree_5()).unwrap());
+    b.iter(|| MerkleTree::<Hash512, A, VecStore<_>, 2, 0, 0>::try_from_iter(tree_5()).unwrap());
 }
 
 #[bench]
 fn bench_crypto_sha512_from_data_5_proof(b: &mut Bencher) {
-    let tree: MerkleTree<Hash512, A, VecStore<_>> = MerkleTree::try_from_iter(tree_5()).unwrap();
+    let tree: MerkleTree<Hash512, A, VecStore<_>, 2, 0, 0> =
+        MerkleTree::try_from_iter(tree_5()).unwrap();
 
     b.iter(|| {
         for i in 0..tree.len() {
@@ -159,7 +160,8 @@ fn bench_crypto_sha512_from_data_5_proof(b: &mut Bencher) {
 
 #[bench]
 fn bench_crypto_sha512_from_data_5_proof_check(b: &mut Bencher) {
-    let tree: MerkleTree<Hash512, A, VecStore<_>> = MerkleTree::try_from_iter(tree_5()).unwrap();
+    let tree: MerkleTree<Hash512, A, VecStore<_>, 2, 0, 0> =
+        MerkleTree::try_from_iter(tree_5()).unwrap();
 
     let proofs = (0..tree.len())
         .map(|i| tree.gen_proof(i).unwrap())
@@ -174,37 +176,40 @@ fn bench_crypto_sha512_from_data_5_proof_check(b: &mut Bencher) {
 
 #[bench]
 fn bench_crypto_sha512_from_data_160_vec(b: &mut Bencher) {
-    b.iter(|| MerkleTree::<Hash512, A, VecStore<_>>::try_from_iter(tree_160()).unwrap());
+    b.iter(|| MerkleTree::<Hash512, A, VecStore<_>, 2, 0, 0>::try_from_iter(tree_160()).unwrap());
 }
 
 #[bench]
 fn bench_crypto_sha512_from_data_160_mmap(b: &mut Bencher) {
-    b.iter(|| MerkleTree::<Hash512, A, DiskStore<_>>::try_from_iter(tree_160()).unwrap());
+    b.iter(|| MerkleTree::<Hash512, A, DiskStore<_>, 2, 0, 0>::try_from_iter(tree_160()).unwrap());
 }
 
 #[bench]
 fn bench_crypto_sha512_from_data_160_par(b: &mut Bencher) {
-    b.iter(|| MerkleTree::<Hash512, A, VecStore<_>>::from_par_iter(tree_160_par()));
+    b.iter(|| MerkleTree::<Hash512, A, VecStore<_>, 2, 0, 0>::from_par_iter(tree_160_par()));
 }
 
 #[bench]
 fn bench_crypto_sha512_from_data_30000_vec(b: &mut Bencher) {
-    b.iter(|| MerkleTree::<Hash512, A, VecStore<_>>::try_from_iter(tree_30000()).unwrap());
+    b.iter(|| MerkleTree::<Hash512, A, VecStore<_>, 2, 0, 0>::try_from_iter(tree_30000()).unwrap());
 }
 
 #[bench]
 fn bench_crypto_sha512_from_data_30000_mmap(b: &mut Bencher) {
-    b.iter(|| MerkleTree::<Hash512, A, DiskStore<_>>::try_from_iter(tree_30000()).unwrap());
+    b.iter(|| {
+        MerkleTree::<Hash512, A, DiskStore<_>, 2, 0, 0>::try_from_iter(tree_30000()).unwrap()
+    });
 }
 
 #[bench]
 fn bench_crypto_sha512_from_data_30000_par(b: &mut Bencher) {
-    b.iter(|| MerkleTree::<Hash512, A, VecStore<_>>::from_par_iter(tree_30000_par()));
+    b.iter(|| MerkleTree::<Hash512, A, VecStore<_>, 2, 0, 0>::from_par_iter(tree_30000_par()));
 }
 
 #[bench]
 fn bench_crypto_sha512_from_data_160_proof(b: &mut Bencher) {
-    let tree: MerkleTree<Hash512, A, VecStore<_>> = MerkleTree::try_from_iter(tree_160()).unwrap();
+    let tree: MerkleTree<Hash512, A, VecStore<_>, 2, 0, 0> =
+        MerkleTree::try_from_iter(tree_160()).unwrap();
 
     b.iter(|| {
         for i in 0..tree.len() {
@@ -216,7 +221,8 @@ fn bench_crypto_sha512_from_data_160_proof(b: &mut Bencher) {
 
 #[bench]
 fn bench_crypto_sha512_from_data_160_proof_check(b: &mut Bencher) {
-    let tree: MerkleTree<Hash512, A, VecStore<_>> = MerkleTree::try_from_iter(tree_160()).unwrap();
+    let tree: MerkleTree<Hash512, A, VecStore<_>, 2, 0, 0> =
+        MerkleTree::try_from_iter(tree_160()).unwrap();
     let proofs = (0..tree.len())
         .map(|i| tree.gen_proof(i).unwrap())
         .collect::<Vec<_>>();
