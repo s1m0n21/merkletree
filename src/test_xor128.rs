@@ -1,6 +1,6 @@
 #[cfg(test)]
 use crate::hash::*;
-use crate::merkle::MerkleTree;
+use crate::merkle::{Element, MerkleTree};
 use crate::store::{DiskStore, ReplicaConfig, StoreConfig, VecStore};
 
 use crate::merkle::{
@@ -19,7 +19,9 @@ use std::path::PathBuf;
 use typenum::marker_traits::Unsigned;
 use typenum::{U2, U3, U4, U5, U7, U8};
 
-use crate::test_common::{get_vec_tree_from_slice, BINARY_ARITY, OCT_ARITY, QUAD_ARITY, XOR128};
+use crate::test_common::{
+    get_vec_tree_from_slice, Item, Sha256Hasher, BINARY_ARITY, OCT_ARITY, QUAD_ARITY, XOR128,
+};
 
 fn test_vec_tree_from_slice<U: Unsigned>(
     leafs: usize,
@@ -415,29 +417,68 @@ fn test_hasher_light() {
 
 #[test]
 fn test_vec_from_slice() {
-    let x = [String::from("ars"), String::from("zxc")];
-    let mt: MerkleTree<[u8; 16], XOR128, VecStore<_>> =
-        MerkleTree::from_data(&x).expect("failed to create tree");
-    assert_eq!(
-        mt.read_range(0, 3).unwrap(),
-        [
-            [0, 97, 114, 115, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-            [0, 122, 120, 99, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-            [1, 0, 27, 10, 16, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-        ]
-    );
-    assert_eq!(mt.len(), 3);
-    assert_eq!(mt.leafs(), 2);
-    assert_eq!(mt.row_count(), 2);
-    assert_eq!(
-        mt.root(),
-        [1, 0, 27, 10, 16, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
-    );
+    fn run_test<E: Element, A: Algorithm<E>, BaseTreeArity: Unsigned>(
+        dataset: Vec<String>,
+        expected_range: Vec<E>,
+        expected_root: E,
+    ) {
+        let mt: MerkleTree<E, A, VecStore<E>, BaseTreeArity> =
+            MerkleTree::from_data(dataset.clone()).expect("failed to create tree");
 
-    for i in 0..mt.leafs() {
-        let p = mt.gen_proof(i).unwrap();
-        assert!(p.validate::<XOR128>().expect("failed to validate"));
+        let expected_leaves = dataset.len();
+        let expected_length = get_merkle_tree_len(expected_leaves, BaseTreeArity::to_usize())
+            .expect("can't compute merkle tree length");
+        assert_eq!(mt.len(), expected_length);
+        assert_eq!(mt.leafs(), expected_leaves);
+        assert_eq!(
+            mt.row_count(),
+            get_merkle_tree_row_count(expected_leaves, BaseTreeArity::to_usize())
+        );
+        assert_eq!(mt.read_range(0, expected_length).unwrap(), expected_range);
+        assert_eq!(mt.root(), expected_root);
+
+        for i in 0..mt.leafs() {
+            let p = mt.gen_proof(i).unwrap();
+            assert!(p.validate::<A>().expect("failed to validate"));
+        }
     }
+
+    let dataset = vec![String::from("ars"), String::from("zxc")];
+    let expected_range = vec![
+        Item::from([0, 97, 114, 115, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]),
+        Item::from([0, 122, 120, 99, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]),
+        Item::from([1, 0, 27, 10, 16, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]),
+    ];
+    let expected_root = Item::from([1, 0, 27, 10, 16, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
+    run_test::<Item, XOR128, U2>(dataset, expected_range, expected_root);
+
+    let dataset = vec![
+        String::from("qwerty"),
+        String::from("ytrewq"),
+        String::from("uiop"),
+        String::from("zxcvbnm"),
+    ];
+    let expected_range = vec![
+        Item::from([
+            170, 248, 193, 39, 233, 87, 121, 88, 121, 81, 188, 115, 35, 118, 221, 232,
+        ]),
+        Item::from([
+            239, 238, 194, 27, 29, 162, 203, 33, 147, 185, 55, 130, 122, 230, 70, 35,
+        ]),
+        Item::from([
+            88, 57, 211, 16, 241, 62, 95, 165, 240, 30, 173, 40, 2, 185, 245, 186,
+        ]),
+        Item::from([
+            109, 19, 134, 36, 237, 227, 190, 84, 8, 52, 19, 6, 17, 97, 162, 121,
+        ]),
+        Item::from([
+            51, 99, 188, 118, 234, 122, 91, 35, 244, 253, 58, 103, 81, 209, 211, 165,
+        ]),
+    ];
+    let expected_root = Item::from([
+        51, 99, 188, 118, 234, 122, 91, 35, 244, 253, 58, 103, 81, 209, 211, 165,
+    ]);
+    run_test::<Item, Sha256Hasher, U4>(dataset, expected_range, expected_root);
 }
 
 // B: Branching factor of sub-trees

@@ -1,7 +1,10 @@
-use crate::hash::*;
+use crate::hash::Algorithm;
 use crate::merkle::{Element, MerkleTree};
 use crate::store::VecStore;
+use crypto::digest::Digest;
+use crypto::sha2::Sha256;
 use std::fmt;
+use std::fmt::{Debug, Formatter};
 use std::hash::Hasher;
 use typenum::marker_traits::Unsigned;
 
@@ -19,6 +22,9 @@ pub struct XOR128 {
     i: usize,
 }
 
+/// Implementation of XOR128 Hasher
+///
+/// It is used for testing purposes
 impl XOR128 {
     pub fn new() -> XOR128 {
         XOR128 {
@@ -54,7 +60,7 @@ impl Algorithm<Item> for XOR128 {
 }
 
 impl fmt::UpperHex for XOR128 {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         if f.alternate() {
             if let Err(e) = f.write_str("0x") {
                 return Err(e);
@@ -83,6 +89,61 @@ impl Element for [u8; 16] {
 
     fn copy_to_slice(&self, bytes: &mut [u8]) {
         bytes.copy_from_slice(self);
+    }
+}
+
+/// Implementation of SHA-256 Hasher
+///
+/// It is used for testing purposes
+#[derive(Copy, Clone)]
+pub struct Sha256Hasher {
+    engine: Sha256,
+}
+
+impl Sha256Hasher {
+    pub fn new() -> Sha256Hasher {
+        Sha256Hasher {
+            engine: Sha256::new(),
+        }
+    }
+}
+
+impl Debug for Sha256Hasher {
+    fn fmt(&self, _f: &mut Formatter<'_>) -> fmt::Result {
+        todo!()
+    }
+}
+
+impl Default for Sha256Hasher {
+    fn default() -> Self {
+        Sha256Hasher::new()
+    }
+}
+
+impl Hasher for Sha256Hasher {
+    // FIXME: contract is broken by design
+    fn finish(&self) -> u64 {
+        unimplemented!()
+    }
+
+    fn write(&mut self, bytes: &[u8]) {
+        self.engine.input(bytes)
+    }
+}
+
+impl Algorithm<Item> for Sha256Hasher {
+    fn hash(&mut self) -> Item {
+        let mut result: Item = Item::default();
+        let item_size = result.len();
+        let mut hash_output = vec![0u8; self.engine.output_bytes()];
+        self.engine.result(&mut hash_output);
+        self.engine.reset();
+        if item_size < hash_output.len() {
+            result.copy_from_slice(&hash_output.as_slice()[0..item_size]);
+        } else {
+            result.copy_from_slice(&hash_output.as_slice())
+        }
+        result
     }
 }
 
