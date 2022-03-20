@@ -1,21 +1,21 @@
 #[cfg(test)]
-use crate::hash::*;
-use crate::merkle::{Element, MerkleTree};
-use crate::store::{DiskStore, ReplicaConfig, StoreConfig, VecStore};
-
+use crate::hash::{Algorithm, Hashable};
 use crate::merkle::{
-    get_merkle_tree_len, get_merkle_tree_row_count, is_merkle_tree_size_valid,
-    FromIndexedParallelIterator,
+    get_merkle_tree_len, get_merkle_tree_row_count, is_merkle_tree_size_valid, Element,
+    FromIndexedParallelIterator, MerkleTree,
 };
 use crate::store::{
-    DiskStoreProducer, ExternalReader, LevelCacheStore, MmapStore, Store, StoreConfigDataVersion,
-    SMALL_TREE_BUILD,
+    DiskStore, DiskStoreProducer, ExternalReader, LevelCacheStore, MmapStore, ReplicaConfig, Store,
+    StoreConfig, StoreConfigDataVersion, VecStore, SMALL_TREE_BUILD,
 };
-use rayon::iter::{plumbing::*, IntoParallelIterator, ParallelIterator};
+use crypto::digest::Digest;
+use crypto::sha2::Sha256;
+use rayon::iter::{plumbing::Producer, IntoParallelIterator, ParallelIterator};
 use std::fs::OpenOptions;
-use std::io::prelude::*;
+use std::io::Write as ioWrite;
 use std::os::unix::prelude::FileExt;
 use std::path::PathBuf;
+use std::num::ParseIntError;
 use typenum::marker_traits::Unsigned;
 use typenum::{U2, U3, U4, U5, U7, U8};
 
@@ -404,15 +404,66 @@ fn test_levelcache_direct_build_octo() {
 
 #[test]
 fn test_hasher_light() {
-    let mut h = XOR128::new();
-    "1234567812345678".hash(&mut h);
-    h.reset();
-    String::from("1234567812345678").hash(&mut h);
-    assert_eq!(format!("{:#X}", h), "0x31323334353637383132333435363738");
-    String::from("1234567812345678").hash(&mut h);
-    assert_eq!(format!("{:#X}", h), "0x00000000000000000000000000000000");
-    String::from("1234567812345678").hash(&mut h);
-    assert_eq!(format!("{:#X}", h), "0x31323334353637383132333435363738");
+    fn decode_hex(s: &str) -> Result<Vec<u8>, ParseIntError> {
+        (0..s.len())
+            .step_by(2)
+            .map(|i| u8::from_str_radix(&s[i..i + 2], 16))
+            .collect()
+    }
+    fn run_test<E: Element, A: Algorithm<E>>(
+        number_of_hashing: usize,
+        input: Vec<u8>,
+        expected_output: Vec<u8>,
+    ) {
+        let mut h = A::default();
+        let mut result = vec![0u8; E::byte_len()];
+
+        for _ in 0..number_of_hashing {
+            input.hash(&mut h);
+        }
+
+        let element = h.hash();
+        element.copy_to_slice(&mut result);
+        assert_eq!(result, expected_output);
+    }
+
+    /*
+       For XOR128 hasher: if we perform odd number of hashing operations,
+       we always obtain output which is equal to input. Otherwise - output
+       is equal to array of all zeroes
+    */
+    run_test::<Item, XOR128>(
+        2,
+        decode_hex("000102030405060708090a0b0c0d0e0f").unwrap(),
+        decode_hex("00000000000000000000000000000000").unwrap(),
+    );
+    run_test::<Item, XOR128>(
+        5,
+        decode_hex("000102030405060708090a0b0c0d0e0f").unwrap(),
+        decode_hex("000102030405060708090a0b0c0d0e0f").unwrap(),
+    );
+    run_test::<Item, XOR128>(
+        10,
+        decode_hex("000102030405060708090a0b0c0d0e0f").unwrap(),
+        decode_hex("00000000000000000000000000000000").unwrap(),
+    );
+    run_test::<Item, XOR128>(
+        371,
+        decode_hex("000102030405060708090a0b0c0d0e0f").unwrap(),
+        decode_hex("000102030405060708090a0b0c0d0e0f").unwrap(),
+    );
+
+    let mut sha256 = Sha256::new();
+    let number_of_hashing = 951;
+    let input = decode_hex("000102030405060708090a0b0c0d0e0f").unwrap();
+    let mut expected_output = vec![0u8; sha256.output_bytes()];
+    for _ in 0..number_of_hashing {
+        sha256.input(input.as_slice());
+    }
+    sha256.result(expected_output.as_mut_slice());
+    expected_output.truncate(Item::byte_len());
+
+    run_test::<Item, Sha256Hasher>(number_of_hashing, input, expected_output);
 }
 
 #[test]

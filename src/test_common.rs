@@ -59,22 +59,6 @@ impl Algorithm<Item> for XOR128 {
     }
 }
 
-impl fmt::UpperHex for XOR128 {
-    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
-        if f.alternate() {
-            if let Err(e) = f.write_str("0x") {
-                return Err(e);
-            }
-        }
-        for b in self.data.as_ref() {
-            if let Err(e) = write!(f, "{:02X}", b) {
-                return Err(e);
-            }
-        }
-        Ok(())
-    }
-}
-
 impl Element for [u8; 16] {
     fn byte_len() -> usize {
         16
