@@ -13,9 +13,9 @@ use crypto::sha2::Sha256;
 use rayon::iter::{plumbing::Producer, IntoParallelIterator, ParallelIterator};
 use std::fs::OpenOptions;
 use std::io::Write as ioWrite;
+use std::num::ParseIntError;
 use std::os::unix::prelude::FileExt;
 use std::path::PathBuf;
-use std::num::ParseIntError;
 use typenum::marker_traits::Unsigned;
 use typenum::{U2, U3, U4, U5, U7, U8};
 
@@ -23,7 +23,7 @@ use crate::test_common::{
     get_vec_tree_from_slice, Item, Sha256Hasher, BINARY_ARITY, OCT_ARITY, QUAD_ARITY, XOR128,
 };
 
-fn test_vec_tree_from_slice<U: Unsigned>(
+fn test_vec_tree_from_slice<E: Element, A: Algorithm<E>, U: Unsigned>(
     leafs: usize,
     len: usize,
     row_count: usize,
@@ -33,7 +33,7 @@ fn test_vec_tree_from_slice<U: Unsigned>(
     for i in 0..leafs {
         x[i] = i * 93;
     }
-    let mt: MerkleTree<[u8; 16], XOR128, VecStore<_>, U> =
+    let mt: MerkleTree<E, A, VecStore<E>, U> =
         MerkleTree::from_data(&x).expect("failed to create tree from slice");
     assert_eq!(mt.len(), len);
     assert_eq!(mt.leafs(), leafs);
@@ -42,7 +42,7 @@ fn test_vec_tree_from_slice<U: Unsigned>(
     for i in 0..num_challenges {
         let index = i * (leafs / num_challenges);
         let p = mt.gen_proof(index).unwrap();
-        assert!(p.validate::<XOR128>().expect("failed to validate"));
+        assert!(p.validate::<A>().expect("failed to validate"));
     }
 }
 
@@ -534,17 +534,19 @@ fn test_vec_from_slice() {
 
 // B: Branching factor of sub-trees
 // N: Branching factor of top-layer
-fn test_compound_tree_from_slices<B: Unsigned, N: Unsigned>(sub_tree_leafs: usize) {
+fn test_compound_tree_from_slices<E: Element, A: Algorithm<E>, B: Unsigned, N: Unsigned>(
+    sub_tree_leafs: usize,
+) {
     let branches = B::to_usize();
     assert!(is_merkle_tree_size_valid(sub_tree_leafs, branches));
 
     let sub_tree_count = N::to_usize();
     let mut sub_trees = Vec::with_capacity(sub_tree_count);
     for _ in 0..sub_tree_count {
-        sub_trees.push(get_vec_tree_from_slice::<B>(sub_tree_leafs));
+        sub_trees.push(get_vec_tree_from_slice::<E, A, B>(sub_tree_leafs));
     }
 
-    let tree: MerkleTree<[u8; 16], XOR128, VecStore<_>, B, N> =
+    let tree: MerkleTree<E, A, VecStore<E>, B, N> =
         MerkleTree::from_trees(sub_trees).expect("Failed to build compound tree from sub trees");
 
     assert_eq!(
@@ -561,7 +563,7 @@ fn test_compound_tree_from_slices<B: Unsigned, N: Unsigned>(sub_tree_leafs: usiz
 
         // Make sure all proofs validate.
         let p = tree.gen_proof(i).unwrap();
-        assert!(p.validate::<XOR128>().expect("failed to validate"));
+        assert!(p.validate::<A>().expect("failed to validate"));
     }
 }
 
@@ -705,13 +707,16 @@ fn test_compound_levelcache_tree_from_store_configs<B: Unsigned, N: Unsigned>(
 #[test]
 fn test_compound_quad_trees_from_slices() {
     // 3 quad trees each with 4 leafs joined by top layer
-    test_compound_tree_from_slices::<U4, U3>(4);
+    test_compound_tree_from_slices::<Item, XOR128, U4, U3>(4);
+    test_compound_tree_from_slices::<Item, Sha256Hasher, U4, U3>(4);
 
     // 5 quad trees each with 16 leafs joined by top layer
-    test_compound_tree_from_slices::<U4, U5>(16);
+    test_compound_tree_from_slices::<Item, XOR128, U4, U5>(16);
+    test_compound_tree_from_slices::<Item, Sha256Hasher, U4, U5>(16);
 
     // 7 quad trees each with 64 leafs joined by top layer
-    test_compound_tree_from_slices::<U4, U7>(64);
+    test_compound_tree_from_slices::<Item, XOR128, U4, U7>(64);
+    test_compound_tree_from_slices::<Item, Sha256Hasher, U4, U7>(64);
 }
 
 #[test]
@@ -741,13 +746,16 @@ fn test_compound_levelcache_quad_trees_from_store_configs() {
 #[test]
 fn test_compound_octrees_from_slices() {
     // 3 octrees each with 8 leafs joined by top layer
-    test_compound_tree_from_slices::<U8, U3>(8);
+    test_compound_tree_from_slices::<Item, XOR128, U8, U3>(8);
+    test_compound_tree_from_slices::<Item, Sha256Hasher, U8, U3>(8);
 
     // 5 octrees each with 64 leafs joined by top layer
-    test_compound_tree_from_slices::<U8, U5>(64);
+    test_compound_tree_from_slices::<Item, XOR128, U8, U5>(64);
+    test_compound_tree_from_slices::<Item, Sha256Hasher, U8, U5>(64);
 
     // 7 octrees each with 320 leafs joined by top layer
-    test_compound_tree_from_slices::<U8, U7>(512);
+    test_compound_tree_from_slices::<Item, XOR128, U8, U7>(512);
+    test_compound_tree_from_slices::<Item, Sha256Hasher, U8, U7>(512);
 }
 
 #[test]
@@ -775,55 +783,45 @@ fn test_compound_levelcache_octrees_trees_from_store_configs() {
 }
 
 #[test]
-fn test_compound_quad_tree_from_slices() {
-    // This tests a compound merkle tree that consists of 3 quad trees
-    // with 4 leafs each.  The compound tree will have 12 leaves.
-    let leafs = 4;
-    let mt1 = get_vec_tree_from_slice::<U4>(leafs);
-    let mt2 = get_vec_tree_from_slice::<U4>(leafs);
-    let mt3 = get_vec_tree_from_slice::<U4>(leafs);
-
-    let tree: MerkleTree<[u8; 16], XOR128, VecStore<_>, U4, U3> =
-        MerkleTree::from_trees(vec![mt1, mt2, mt3]).expect("Failed to build compound tree");
-    assert_eq!(tree.len(), 16);
-    assert_eq!(tree.leafs(), 12);
-    assert_eq!(tree.row_count(), 3);
-
-    for i in 0..tree.leafs() {
-        let p = tree.gen_proof(i).unwrap();
-        assert!(p.validate::<XOR128>().expect("failed to validate"));
-    }
-}
-
-#[test]
 fn test_compound_octree_from_slices() {
-    // This tests a compound merkle tree that consists of 5 octrees
-    // with 64 leafs each.  The compound tree will have 320 leaves.
-    let leafs = 64;
-    let mt1 = get_vec_tree_from_slice::<U8>(leafs);
-    let mt2 = get_vec_tree_from_slice::<U8>(leafs);
-    let mt3 = get_vec_tree_from_slice::<U8>(leafs);
-    let mt4 = get_vec_tree_from_slice::<U8>(leafs);
-    let mt5 = get_vec_tree_from_slice::<U8>(leafs);
+    fn run_test<E: Element, A: Algorithm<E>, BaseTreeArity: Unsigned>(
+        expected_tree_len: usize,
+        expected_tree_leaves_number: usize,
+        expected_tree_row_count: usize,
+    ) {
+        // This tests a compound merkle tree that consists of 5 octrees
+        // with 64 leafs each.  The compound tree will have 320 leaves.
+        let leafs = 64;
+        let mt1 = get_vec_tree_from_slice::<E, A, BaseTreeArity>(leafs);
+        let mt2 = get_vec_tree_from_slice::<E, A, BaseTreeArity>(leafs);
+        let mt3 = get_vec_tree_from_slice::<E, A, BaseTreeArity>(leafs);
+        let mt4 = get_vec_tree_from_slice::<E, A, BaseTreeArity>(leafs);
+        let mt5 = get_vec_tree_from_slice::<E, A, BaseTreeArity>(leafs);
 
-    let tree: MerkleTree<[u8; 16], XOR128, VecStore<_>, U8, U5> =
-        MerkleTree::from_trees(vec![mt1, mt2, mt3, mt4, mt5])
-            .expect("Failed to build compound tree");
+        let tree: MerkleTree<E, A, VecStore<_>, BaseTreeArity, U5> =
+            MerkleTree::from_trees(vec![mt1, mt2, mt3, mt4, mt5])
+                .expect("Failed to build compound tree");
 
-    assert_eq!(tree.len(), 366);
-    assert_eq!(tree.leafs(), 320);
-    assert_eq!(tree.row_count(), 4);
+        println!("{:?}", tree);
+        assert_eq!(tree.len(), expected_tree_len);
+        assert_eq!(tree.leafs(), expected_tree_leaves_number);
+        assert_eq!(tree.row_count(), expected_tree_row_count);
 
-    for i in 0..tree.leafs() {
-        let p = tree.gen_proof(i).unwrap();
-        assert!(p.validate::<XOR128>().expect("failed to validate"));
+        for i in 0..tree.leafs() {
+            let p = tree.gen_proof(i).unwrap();
+            assert!(p.validate::<A>().expect("failed to validate"));
+        }
     }
+
+    run_test::<Item, XOR128, U8>(366, 320, 4);
+    run_test::<Item, Sha256Hasher, U8>(366, 320, 4);
 }
 
 #[test]
 fn test_quad_from_slice() {
     let (leafs, len, row_count, num_challenges) = { (16, 21, 3, 16) };
-    test_vec_tree_from_slice::<U4>(leafs, len, row_count, num_challenges);
+    test_vec_tree_from_slice::<Item, XOR128, U4>(leafs, len, row_count, num_challenges);
+    test_vec_tree_from_slice::<Item, Sha256Hasher, U4>(leafs, len, row_count, num_challenges);
 }
 
 #[test]

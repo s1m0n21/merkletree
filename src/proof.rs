@@ -278,7 +278,7 @@ fn modify_proof<BaseTreeArity: Unsigned, SubTreeArity: Unsigned, TopTreeArity: U
 #[test]
 fn test_proofs() {
     let leafs = 32768;
-    let tree = get_vec_tree_from_slice::<U2>(leafs);
+    let tree = get_vec_tree_from_slice::<Item, XOR128, U2>(leafs);
 
     for i in 0..tree.leafs() {
         let mut p = tree.gen_proof(i).unwrap();
@@ -293,9 +293,9 @@ fn test_proofs() {
 #[test]
 fn test_compound_quad_broken_proofs() {
     let leafs = 16384;
-    let mt1 = get_vec_tree_from_slice::<U4>(leafs);
-    let mt2 = get_vec_tree_from_slice::<U4>(leafs);
-    let mt3 = get_vec_tree_from_slice::<U4>(leafs);
+    let mt1 = get_vec_tree_from_slice::<Item, XOR128, U4>(leafs);
+    let mt2 = get_vec_tree_from_slice::<Item, XOR128, U4>(leafs);
+    let mt3 = get_vec_tree_from_slice::<Item, XOR128, U4>(leafs);
 
     let tree: MerkleTree<Item, XOR128, VecStore<_>, U4, U3> =
         MerkleTree::from_trees(vec![mt1, mt2, mt3]).expect("Failed to build compound tree");
@@ -312,7 +312,7 @@ fn test_compound_quad_broken_proofs() {
 #[test]
 fn test_compound_single_octree_broken_proofs() {
     let leafs = 32768;
-    let mt1 = get_vec_tree_from_slice::<U8>(leafs);
+    let mt1 = get_vec_tree_from_slice::<Item, XOR128, U8>(leafs);
 
     let tree: MerkleTree<Item, XOR128, VecStore<_>, U8, U1> =
         MerkleTree::from_trees(vec![mt1]).expect("Failed to build compound tree");
@@ -330,10 +330,10 @@ fn test_compound_single_octree_broken_proofs() {
 #[ignore]
 fn test_compound_octree_broken_proofs() {
     let leafs = 32768;
-    let mt1 = get_vec_tree_from_slice::<U8>(leafs);
-    let mt2 = get_vec_tree_from_slice::<U8>(leafs);
-    let mt3 = get_vec_tree_from_slice::<U8>(leafs);
-    let mt4 = get_vec_tree_from_slice::<U8>(leafs);
+    let mt1 = get_vec_tree_from_slice::<Item, XOR128, U8>(leafs);
+    let mt2 = get_vec_tree_from_slice::<Item, XOR128, U8>(leafs);
+    let mt3 = get_vec_tree_from_slice::<Item, XOR128, U8>(leafs);
+    let mt4 = get_vec_tree_from_slice::<Item, XOR128, U8>(leafs);
 
     let tree: MerkleTree<Item, XOR128, VecStore<_>, U8, U4> =
         MerkleTree::from_trees(vec![mt1, mt2, mt3, mt4]).expect("Failed to build compound tree");
@@ -351,21 +351,21 @@ fn test_compound_octree_broken_proofs() {
 fn test_ccompound_quad_broken_proofs() {
     let leafs = 16384;
 
-    let mt1 = get_vec_tree_from_slice::<U4>(leafs);
-    let mt2 = get_vec_tree_from_slice::<U4>(leafs);
-    let mt3 = get_vec_tree_from_slice::<U4>(leafs);
+    let mt1 = get_vec_tree_from_slice::<Item, XOR128, U4>(leafs);
+    let mt2 = get_vec_tree_from_slice::<Item, XOR128, U4>(leafs);
+    let mt3 = get_vec_tree_from_slice::<Item, XOR128, U4>(leafs);
     let cmt1: MerkleTree<Item, XOR128, VecStore<_>, U4, U3> =
         MerkleTree::from_trees(vec![mt1, mt2, mt3]).expect("failed to build compound merkle tree");
 
-    let mt4 = get_vec_tree_from_slice::<U4>(leafs);
-    let mt5 = get_vec_tree_from_slice::<U4>(leafs);
-    let mt6 = get_vec_tree_from_slice::<U4>(leafs);
+    let mt4 = get_vec_tree_from_slice::<Item, XOR128, U4>(leafs);
+    let mt5 = get_vec_tree_from_slice::<Item, XOR128, U4>(leafs);
+    let mt6 = get_vec_tree_from_slice::<Item, XOR128, U4>(leafs);
     let cmt2: MerkleTree<Item, XOR128, VecStore<_>, U4, U3> =
         MerkleTree::from_trees(vec![mt4, mt5, mt6]).expect("failed to build compound merkle tree");
 
-    let mt7 = get_vec_tree_from_slice::<U4>(leafs);
-    let mt8 = get_vec_tree_from_slice::<U4>(leafs);
-    let mt9 = get_vec_tree_from_slice::<U4>(leafs);
+    let mt7 = get_vec_tree_from_slice::<Item, XOR128, U4>(leafs);
+    let mt8 = get_vec_tree_from_slice::<Item, XOR128, U4>(leafs);
+    let mt9 = get_vec_tree_from_slice::<Item, XOR128, U4>(leafs);
     let cmt3: MerkleTree<Item, XOR128, VecStore<_>, U4, U3> =
         MerkleTree::from_trees(vec![mt7, mt8, mt9]).expect("failed to build compound merkle tree");
 
@@ -386,9 +386,9 @@ fn test_ccompound_quad_broken_proofs() {
 fn test_ccompound_single_quad_broken_proofs() {
     let leafs = 16384;
 
-    let mt1 = get_vec_tree_from_slice::<U4>(leafs);
-    let mt2 = get_vec_tree_from_slice::<U4>(leafs);
-    let mt3 = get_vec_tree_from_slice::<U4>(leafs);
+    let mt1 = get_vec_tree_from_slice::<Item, XOR128, U4>(leafs);
+    let mt2 = get_vec_tree_from_slice::<Item, XOR128, U4>(leafs);
+    let mt3 = get_vec_tree_from_slice::<Item, XOR128, U4>(leafs);
     let cmt1: MerkleTree<Item, XOR128, VecStore<_>, U4, U3> =
         MerkleTree::from_trees(vec![mt1, mt2, mt3]).expect("failed to build compound merkle tree");
 
@@ -409,39 +409,39 @@ fn test_ccompound_single_quad_broken_proofs() {
 fn test_ccompound_octree_broken_proofs() {
     let leafs = 32768;
 
-    let mt1 = get_vec_tree_from_slice::<U8>(leafs);
-    let mt2 = get_vec_tree_from_slice::<U8>(leafs);
-    let mt3 = get_vec_tree_from_slice::<U8>(leafs);
-    let mt4 = get_vec_tree_from_slice::<U8>(leafs);
+    let mt1 = get_vec_tree_from_slice::<Item, XOR128, U8>(leafs);
+    let mt2 = get_vec_tree_from_slice::<Item, XOR128, U8>(leafs);
+    let mt3 = get_vec_tree_from_slice::<Item, XOR128, U8>(leafs);
+    let mt4 = get_vec_tree_from_slice::<Item, XOR128, U8>(leafs);
     let cmt1: MerkleTree<Item, XOR128, VecStore<_>, U8, U4> =
         MerkleTree::from_trees(vec![mt1, mt2, mt3, mt4]).expect("Failed to build compound tree");
 
-    let mt5 = get_vec_tree_from_slice::<U8>(leafs);
-    let mt6 = get_vec_tree_from_slice::<U8>(leafs);
-    let mt7 = get_vec_tree_from_slice::<U8>(leafs);
-    let mt8 = get_vec_tree_from_slice::<U8>(leafs);
+    let mt5 = get_vec_tree_from_slice::<Item, XOR128, U8>(leafs);
+    let mt6 = get_vec_tree_from_slice::<Item, XOR128, U8>(leafs);
+    let mt7 = get_vec_tree_from_slice::<Item, XOR128, U8>(leafs);
+    let mt8 = get_vec_tree_from_slice::<Item, XOR128, U8>(leafs);
     let cmt2: MerkleTree<Item, XOR128, VecStore<_>, U8, U4> =
         MerkleTree::from_trees(vec![mt5, mt6, mt7, mt8]).expect("Failed to build compound tree");
 
-    let mt9 = get_vec_tree_from_slice::<U8>(leafs);
-    let mt10 = get_vec_tree_from_slice::<U8>(leafs);
-    let mt11 = get_vec_tree_from_slice::<U8>(leafs);
-    let mt12 = get_vec_tree_from_slice::<U8>(leafs);
+    let mt9 = get_vec_tree_from_slice::<Item, XOR128, U8>(leafs);
+    let mt10 = get_vec_tree_from_slice::<Item, XOR128, U8>(leafs);
+    let mt11 = get_vec_tree_from_slice::<Item, XOR128, U8>(leafs);
+    let mt12 = get_vec_tree_from_slice::<Item, XOR128, U8>(leafs);
     let cmt3: MerkleTree<Item, XOR128, VecStore<_>, U8, U4> =
         MerkleTree::from_trees(vec![mt9, mt10, mt11, mt12]).expect("Failed to build compound tree");
 
-    let mt13 = get_vec_tree_from_slice::<U8>(leafs);
-    let mt14 = get_vec_tree_from_slice::<U8>(leafs);
-    let mt15 = get_vec_tree_from_slice::<U8>(leafs);
-    let mt16 = get_vec_tree_from_slice::<U8>(leafs);
+    let mt13 = get_vec_tree_from_slice::<Item, XOR128, U8>(leafs);
+    let mt14 = get_vec_tree_from_slice::<Item, XOR128, U8>(leafs);
+    let mt15 = get_vec_tree_from_slice::<Item, XOR128, U8>(leafs);
+    let mt16 = get_vec_tree_from_slice::<Item, XOR128, U8>(leafs);
     let cmt4: MerkleTree<Item, XOR128, VecStore<_>, U8, U4> =
         MerkleTree::from_trees(vec![mt13, mt14, mt15, mt16])
             .expect("Failed to build compound tree");
 
-    let mt17 = get_vec_tree_from_slice::<U8>(leafs);
-    let mt18 = get_vec_tree_from_slice::<U8>(leafs);
-    let mt19 = get_vec_tree_from_slice::<U8>(leafs);
-    let mt20 = get_vec_tree_from_slice::<U8>(leafs);
+    let mt17 = get_vec_tree_from_slice::<Item, XOR128, U8>(leafs);
+    let mt18 = get_vec_tree_from_slice::<Item, XOR128, U8>(leafs);
+    let mt19 = get_vec_tree_from_slice::<Item, XOR128, U8>(leafs);
+    let mt20 = get_vec_tree_from_slice::<Item, XOR128, U8>(leafs);
     let cmt5: MerkleTree<Item, XOR128, VecStore<_>, U8, U4> =
         MerkleTree::from_trees(vec![mt17, mt18, mt19, mt20])
             .expect("Failed to build compound tree");
@@ -464,10 +464,10 @@ fn test_ccompound_octree_broken_proofs() {
 fn test_ccompound_single_octree_broken_proofs() {
     let leafs = 32768;
 
-    let mt1 = get_vec_tree_from_slice::<U8>(leafs);
-    let mt2 = get_vec_tree_from_slice::<U8>(leafs);
-    let mt3 = get_vec_tree_from_slice::<U8>(leafs);
-    let mt4 = get_vec_tree_from_slice::<U8>(leafs);
+    let mt1 = get_vec_tree_from_slice::<Item, XOR128, U8>(leafs);
+    let mt2 = get_vec_tree_from_slice::<Item, XOR128, U8>(leafs);
+    let mt3 = get_vec_tree_from_slice::<Item, XOR128, U8>(leafs);
+    let mt4 = get_vec_tree_from_slice::<Item, XOR128, U8>(leafs);
     let cmt1: MerkleTree<Item, XOR128, VecStore<_>, U8, U4> =
         MerkleTree::from_trees(vec![mt1, mt2, mt3, mt4]).expect("Failed to build compound tree");
 
