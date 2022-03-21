@@ -43,7 +43,9 @@ impl Hasher for XOR128 {
     }
 
     fn finish(&self) -> u64 {
-        unimplemented!()
+        unimplemented!(
+            "Hasher's contract (finish function is not used) is deliberately broken by design"
+        )
     }
 }
 
@@ -107,7 +109,9 @@ impl Default for Sha256Hasher {
 impl Hasher for Sha256Hasher {
     // FIXME: contract is broken by design
     fn finish(&self) -> u64 {
-        unimplemented!()
+        unimplemented!(
+            "Hasher's contract (finish function is not used) is deliberately broken by design"
+        )
     }
 
     fn write(&mut self, bytes: &[u8]) {
