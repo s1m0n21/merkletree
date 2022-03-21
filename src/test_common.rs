@@ -95,8 +95,8 @@ impl Sha256Hasher {
 }
 
 impl Debug for Sha256Hasher {
-    fn fmt(&self, _f: &mut Formatter<'_>) -> fmt::Result {
-        todo!()
+    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
+        f.write_str("Sha256Hasher")
     }
 }
 
