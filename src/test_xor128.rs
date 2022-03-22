@@ -1,4 +1,5 @@
-#[cfg(test)]
+#![cfg(test)]
+
 use crate::hash::{Algorithm, Hashable};
 use crate::merkle::{
     get_merkle_tree_len, get_merkle_tree_row_count, is_merkle_tree_size_valid, Element,

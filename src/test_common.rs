@@ -1,3 +1,5 @@
+#![cfg(test)]
+
 use crate::hash::Algorithm;
 use crate::merkle::{Element, MerkleTree};
 use crate::store::VecStore;
