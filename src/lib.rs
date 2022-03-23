@@ -102,19 +102,15 @@ pub mod merkle;
 pub mod test_common;
 
 /// Tests XOR128.
-#[cfg(test)]
 mod test_xor128;
 
 /// Tests data.
-#[cfg(test)]
 mod test_item;
 
 /// Tests SIP.
-#[cfg(test)]
 mod test_sip;
 
 /// Tests for Merkle Hasher Customization.
-#[cfg(test)]
 mod test_cmh;
 
 #[macro_use]
