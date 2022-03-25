@@ -1810,6 +1810,37 @@ impl Element for [u8; 32] {
     }
 }
 
+pub fn get_merkle_tree_len_generic<
+    BaseTreeArity: Unsigned,
+    SubTreeArity: Unsigned,
+    TopTreeArity: Unsigned,
+>(
+    leaves: usize,
+) -> Result<usize> {
+    let top_tree_arity = TopTreeArity::to_usize();
+    let sub_tree_arity = SubTreeArity::to_usize();
+    let base_tree_arity = BaseTreeArity::to_usize();
+
+    let base_tree_len = match get_merkle_tree_len(leaves, base_tree_arity) {
+        Err(e) => {
+            return Err(e);
+        }
+        Ok(value) => value,
+    };
+
+    if top_tree_arity > 0 {
+        return Ok(1 + top_tree_arity + sub_tree_arity * top_tree_arity * base_tree_len);
+    }
+
+    if sub_tree_arity > 0 {
+        return Ok(1 + sub_tree_arity * base_tree_len);
+    }
+
+    Ok(base_tree_len)
+}
+
+/// FIXME: Ideally this function should be replaced with 'get_merkle_tree_len_generic' defined above,
+/// since it considers compound and compound-compound trees
 // Tree length calculation given the number of leafs in the tree and the branches.
 pub fn get_merkle_tree_len(leafs: usize, branches: usize) -> Result<usize> {
     ensure!(leafs >= branches, "leaf and branch mis-match");
