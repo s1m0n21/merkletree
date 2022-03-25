@@ -22,14 +22,14 @@ use typenum::{U0, U1, U10, U2, U3, U4, U5, U7, U8};
 
 use crate::test_common::{Item, Sha256Hasher, BINARY_ARITY, OCT_ARITY, QUAD_ARITY, XOR128};
 
-fn instantiate_vec_store_tree<E: Element, A: Algorithm<E>, U: Unsigned>(
+fn instantiate_base_tree_from_data<E: Element, A: Algorithm<E>, S: Store<E>, U: Unsigned>(
     leafs: usize,
-) -> MerkleTree<E, A, VecStore<E>, U> {
+) -> MerkleTree<E, A, S, U> {
     let mut x = Vec::with_capacity(leafs);
     for i in 0..leafs {
         x.push(i * 93);
     }
-    MerkleTree::from_data(&x).expect("failed to create base tree with vector storage")
+    MerkleTree::from_data(&x).expect("failed to create base tree from data")
 }
 
 fn invoke_tree_tests<
@@ -73,128 +73,124 @@ fn test_tree_functionality<
     }
 }
 
-#[test]
-fn test_vec_store_tree() {
-    // base tree has SubTreeArity and TopTreeArity parameters equal to zero
-    fn run_test_base_tree<E: Element, A: Algorithm<E>, BaseTreeArity: Unsigned>(
-        leaves_in_tree: usize,
-        expected_leaves: usize,
-        expected_len: usize,
-        expected_root: E,
-    ) {
-        let base_tree: MerkleTree<E, A, VecStore<E>, BaseTreeArity, U0, U0> =
-            instantiate_vec_store_tree::<E, A, BaseTreeArity>(leaves_in_tree);
+// base tree has SubTreeArity and TopTreeArity parameters equal to zero
+fn run_test_base_tree<E: Element, A: Algorithm<E>, S: Store<E>, BaseTreeArity: Unsigned>(
+    f: fn(usize) -> MerkleTree<E, A, S, BaseTreeArity>,
+    leaves_in_tree: usize,
+    expected_leaves: usize,
+    expected_len: usize,
+    expected_root: E,
+) {
+    let base_tree: MerkleTree<E, A, S, BaseTreeArity, U0, U0> = f(leaves_in_tree);
 
-        invoke_tree_tests::<E, A, VecStore<E>, BaseTreeArity, U0, U0>(
-            test_tree_functionality,
-            base_tree,
-            expected_leaves,
-            expected_len,
-            expected_root,
-        );
+    invoke_tree_tests::<E, A, S, BaseTreeArity, U0, U0>(
+        test_tree_functionality,
+        base_tree,
+        expected_leaves,
+        expected_len,
+        expected_root,
+    );
+}
+
+// compound tree has TopTreeArity parameter equals to zero
+fn run_test_compound_tree<
+    E: Element,
+    A: Algorithm<E>,
+    S: Store<E>,
+    BaseTreeArity: Unsigned,
+    SubTreeArity: Unsigned,
+>(
+    f: fn(usize) -> MerkleTree<E, A, S, BaseTreeArity>,
+    base_tree_leaves: usize,
+    expected_leaves: usize,
+    expected_len: usize,
+    expected_root: E,
+) {
+    let mut base_trees: Vec<MerkleTree<E, A, S, BaseTreeArity, U0, U0>> = Vec::new();
+    for _ in 0..SubTreeArity::to_usize() {
+        base_trees.push(f(base_tree_leaves));
     }
 
-    // compound tree has TopTreeArity parameter equals to zero
-    fn run_test_compound_tree<
-        E: Element,
-        A: Algorithm<E>,
-        BaseTreeArity: Unsigned,
-        SubTreeArity: Unsigned,
-    >(
-        base_tree_leaves: usize,
-        expected_leaves: usize,
-        expected_len: usize,
-        expected_root: E,
-    ) {
-        let mut base_trees: Vec<MerkleTree<E, A, VecStore<E>, BaseTreeArity, U0, U0>> = Vec::new();
-        for _ in 0..SubTreeArity::to_usize() {
-            base_trees.push(instantiate_vec_store_tree::<E, A, BaseTreeArity>(
-                base_tree_leaves,
-            ));
-        }
+    let compound_tree: MerkleTree<E, A, S, BaseTreeArity, SubTreeArity, U0> =
+        MerkleTree::from_trees(base_trees)
+            .expect("failed to create compound tree from base trees with vector storage");
 
-        let compound_tree: MerkleTree<E, A, VecStore<E>, BaseTreeArity, SubTreeArity, U0> =
+    invoke_tree_tests::<E, A, S, BaseTreeArity, SubTreeArity, U0>(
+        test_tree_functionality,
+        compound_tree,
+        expected_leaves,
+        expected_len,
+        expected_root,
+    );
+}
+
+// compound-compound tree has all non-zero arities
+fn run_test_compound_compound_tree<
+    E: Element,
+    A: Algorithm<E>,
+    S: Store<E>,
+    BaseTreeArity: Unsigned,
+    SubTreeArity: Unsigned,
+    TopTreeArity: Unsigned,
+>(
+    f: fn(usize) -> MerkleTree<E, A, S, BaseTreeArity>,
+    base_tree_leaves: usize,
+    expected_leaves: usize,
+    expected_len: usize,
+    expected_root: E,
+) {
+    let mut sub_trees: Vec<MerkleTree<E, A, S, BaseTreeArity, SubTreeArity, U0>> = Vec::new();
+    for _ in 0..TopTreeArity::to_usize() {
+        let mut base_trees: Vec<MerkleTree<E, A, S, BaseTreeArity, U0, U0>> = Vec::new();
+        for _ in 0..SubTreeArity::to_usize() {
+            base_trees.push(f(base_tree_leaves));
+        }
+        let sub_tree: MerkleTree<E, A, S, BaseTreeArity, SubTreeArity, U0> =
             MerkleTree::from_trees(base_trees)
                 .expect("failed to create compound tree from base trees with vector storage");
-
-        invoke_tree_tests::<E, A, VecStore<E>, BaseTreeArity, SubTreeArity, U0>(
-            test_tree_functionality,
-            compound_tree,
-            expected_leaves,
-            expected_len,
-            expected_root,
-        );
+        sub_trees.push(sub_tree);
     }
 
-    // compound-compound tree has all non-zero arities
-    fn run_test_compound_compound_tree<
-        E: Element,
-        A: Algorithm<E>,
-        BaseTreeArity: Unsigned,
-        SubTreeArity: Unsigned,
-        TopTreeArity: Unsigned,
-    >(
-        base_tree_leaves: usize,
-        expected_leaves: usize,
-        expected_len: usize,
-        expected_root: E,
-    ) {
-        let mut sub_trees: Vec<MerkleTree<E, A, VecStore<E>, BaseTreeArity, SubTreeArity, U0>> =
-            Vec::new();
-        for _ in 0..TopTreeArity::to_usize() {
-            let mut base_trees: Vec<MerkleTree<E, A, VecStore<E>, BaseTreeArity, U0, U0>> =
-                Vec::new();
-            for _ in 0..SubTreeArity::to_usize() {
-                base_trees.push(instantiate_vec_store_tree::<E, A, BaseTreeArity>(
-                    base_tree_leaves,
-                ));
-            }
-            let sub_tree: MerkleTree<E, A, VecStore<E>, BaseTreeArity, SubTreeArity, U0> =
-                MerkleTree::from_trees(base_trees)
-                    .expect("failed to create compound tree from base trees with vector storage");
-            sub_trees.push(sub_tree);
-        }
-
-        let compound_compound_tree: MerkleTree<
-            E,
-            A,
-            VecStore<E>,
-            BaseTreeArity,
-            SubTreeArity,
-            TopTreeArity,
-        > = MerkleTree::from_sub_trees(sub_trees).expect(
+    let compound_compound_tree: MerkleTree<E, A, S, BaseTreeArity, SubTreeArity, TopTreeArity> =
+        MerkleTree::from_sub_trees(sub_trees).expect(
             "failed to create compound-compound tree from compound trees with vector storage",
         );
 
-        invoke_tree_tests(
-            test_tree_functionality,
-            compound_compound_tree,
-            expected_leaves,
-            expected_len,
-            expected_root,
-        );
-    }
+    invoke_tree_tests::<E, A, S, BaseTreeArity, SubTreeArity, TopTreeArity>(
+        test_tree_functionality,
+        compound_compound_tree,
+        expected_leaves,
+        expected_len,
+        expected_root,
+    );
+}
 
+#[test]
+fn test_vec_store_tree() {
     // TODO add negative tests
-    run_test_base_tree::<Item, XOR128, U2>(
+    run_test_base_tree::<Item, XOR128, VecStore<Item>, U2>(
+        instantiate_base_tree_from_data,
         4,
         4,
         get_merkle_tree_len_generic::<U2, U0, U0>(4).unwrap(),
         Item::from_slice(&[1, 0, 0, 240, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]),
     );
-    run_test_base_tree::<Item, XOR128, U4>(
+    run_test_base_tree::<Item, XOR128, VecStore<Item>, U4>(
+        instantiate_base_tree_from_data,
         16,
         16,
         get_merkle_tree_len_generic::<U4, U0, U0>(16).unwrap(),
         Item::from_slice(&[1, 0, 0, 128, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]),
     );
-    run_test_base_tree::<Item, XOR128, U8>(
+    run_test_base_tree::<Item, XOR128, VecStore<Item>, U8>(
+        instantiate_base_tree_from_data,
         64,
         64,
         get_merkle_tree_len_generic::<U8, U0, U0>(64).unwrap(),
         Item::from_slice(&[1, 0, 0, 0, 19, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]),
     );
-    run_test_base_tree::<Item, Sha256Hasher, U2>(
+    run_test_base_tree::<Item, Sha256Hasher, VecStore<Item>, U2>(
+        instantiate_base_tree_from_data,
         4,
         4,
         get_merkle_tree_len_generic::<U2, U0, U0>(4).unwrap(),
@@ -202,7 +198,8 @@ fn test_vec_store_tree() {
             112, 84, 139, 90, 5, 187, 171, 148, 135, 80, 21, 140, 13, 137, 52, 102,
         ]),
     );
-    run_test_base_tree::<Item, Sha256Hasher, U4>(
+    run_test_base_tree::<Item, Sha256Hasher, VecStore<Item>, U4>(
+        instantiate_base_tree_from_data,
         16,
         16,
         get_merkle_tree_len_generic::<U4, U0, U0>(16).unwrap(),
@@ -210,7 +207,8 @@ fn test_vec_store_tree() {
             156, 213, 153, 136, 70, 40, 19, 69, 185, 146, 93, 128, 133, 175, 69, 246,
         ]),
     );
-    run_test_base_tree::<Item, Sha256Hasher, U8>(
+    run_test_base_tree::<Item, Sha256Hasher, VecStore<Item>, U8>(
+        instantiate_base_tree_from_data,
         64,
         64,
         get_merkle_tree_len_generic::<U8, U0, U0>(64).unwrap(),
@@ -219,25 +217,29 @@ fn test_vec_store_tree() {
         ]),
     );
 
-    run_test_compound_tree::<Item, XOR128, U2, U3>(
+    run_test_compound_tree::<Item, XOR128, VecStore<Item>, U2, U3>(
+        instantiate_base_tree_from_data,
         4,
         4 * 3,
         get_merkle_tree_len_generic::<U2, U3, U0>(4).unwrap(),
         Item::from_slice(&[1, 1, 0, 0, 240, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]),
     );
-    run_test_compound_tree::<Item, XOR128, U4, U5>(
+    run_test_compound_tree::<Item, XOR128, VecStore<Item>, U4, U5>(
+        instantiate_base_tree_from_data,
         16,
         16 * 5,
         get_merkle_tree_len_generic::<U4, U5, U0>(16).unwrap(),
         Item::from_slice(&[1, 1, 0, 0, 128, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]),
     );
-    run_test_compound_tree::<Item, XOR128, U8, U10>(
+    run_test_compound_tree::<Item, XOR128, VecStore<Item>, U8, U10>(
+        instantiate_base_tree_from_data,
         64,
         64 * 10,
         get_merkle_tree_len_generic::<U8, U10, U0>(64).unwrap(),
         Item::from_slice(&[1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]),
     );
-    run_test_compound_tree::<Item, Sha256Hasher, U2, U3>(
+    run_test_compound_tree::<Item, Sha256Hasher, VecStore<Item>, U2, U3>(
+        instantiate_base_tree_from_data,
         4,
         4 * 3,
         get_merkle_tree_len_generic::<U2, U3, U0>(4).unwrap(),
@@ -245,7 +247,8 @@ fn test_vec_store_tree() {
             4, 16, 209, 116, 239, 12, 120, 90, 96, 205, 242, 13, 238, 148, 5, 216,
         ]),
     );
-    run_test_compound_tree::<Item, Sha256Hasher, U4, U5>(
+    run_test_compound_tree::<Item, Sha256Hasher, VecStore<Item>, U4, U5>(
+        instantiate_base_tree_from_data,
         16,
         16 * 5,
         get_merkle_tree_len_generic::<U4, U5, U0>(16).unwrap(),
@@ -253,7 +256,8 @@ fn test_vec_store_tree() {
             128, 90, 230, 57, 212, 75, 1, 3, 121, 99, 225, 58, 238, 173, 50, 119,
         ]),
     );
-    run_test_compound_tree::<Item, Sha256Hasher, U8, U10>(
+    run_test_compound_tree::<Item, Sha256Hasher, VecStore<Item>, U8, U10>(
+        instantiate_base_tree_from_data,
         64,
         64 * 10,
         get_merkle_tree_len_generic::<U8, U10, U0>(64).unwrap(),
@@ -262,25 +266,29 @@ fn test_vec_store_tree() {
         ]),
     );
 
-    run_test_compound_compound_tree::<Item, XOR128, U2, U3, U5>(
+    run_test_compound_compound_tree::<Item, XOR128, VecStore<Item>, U2, U3, U5>(
+        instantiate_base_tree_from_data,
         4,
         4 * 3 * 5,
         get_merkle_tree_len_generic::<U2, U3, U5>(4).unwrap(),
         Item::from_slice(&[1, 1, 1, 0, 0, 240, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0]),
     );
-    run_test_compound_compound_tree::<Item, XOR128, U4, U7, U1>(
+    run_test_compound_compound_tree::<Item, XOR128, VecStore<Item>, U4, U7, U1>(
+        instantiate_base_tree_from_data,
         16,
         16 * 7 * 1,
         get_merkle_tree_len_generic::<U4, U7, U1>(16).unwrap(),
         Item::from_slice(&[1, 1, 1, 0, 0, 128, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]),
     );
-    run_test_compound_compound_tree::<Item, XOR128, U8, U4, U10>(
+    run_test_compound_compound_tree::<Item, XOR128, VecStore<Item>, U8, U4, U10>(
+        instantiate_base_tree_from_data,
         64,
         64 * 4 * 10,
         get_merkle_tree_len_generic::<U8, U4, U10>(64).unwrap(),
         Item::from_slice(&[1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]),
     );
-    run_test_compound_compound_tree::<Item, Sha256Hasher, U2, U3, U5>(
+    run_test_compound_compound_tree::<Item, Sha256Hasher, VecStore<Item>, U2, U3, U5>(
+        instantiate_base_tree_from_data,
         4,
         4 * 3 * 5,
         get_merkle_tree_len_generic::<U2, U3, U5>(4).unwrap(),
@@ -288,7 +296,8 @@ fn test_vec_store_tree() {
             20, 101, 110, 252, 67, 65, 143, 147, 123, 117, 107, 118, 165, 102, 94, 65,
         ]),
     );
-    run_test_compound_compound_tree::<Item, Sha256Hasher, U4, U7, U1>(
+    run_test_compound_compound_tree::<Item, Sha256Hasher, VecStore<Item>, U4, U7, U1>(
+        instantiate_base_tree_from_data,
         16,
         16 * 7 * 1,
         get_merkle_tree_len_generic::<U4, U7, U1>(16).unwrap(),
@@ -296,7 +305,8 @@ fn test_vec_store_tree() {
             55, 133, 28, 149, 173, 221, 64, 20, 77, 1, 47, 203, 251, 250, 76, 95,
         ]),
     );
-    run_test_compound_compound_tree::<Item, Sha256Hasher, U8, U4, U10>(
+    run_test_compound_compound_tree::<Item, Sha256Hasher, VecStore<Item>, U8, U4, U10>(
+        instantiate_base_tree_from_data,
         64,
         64 * 4 * 10,
         get_merkle_tree_len_generic::<U8, U4, U10>(64).unwrap(),
