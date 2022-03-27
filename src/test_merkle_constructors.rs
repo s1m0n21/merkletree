@@ -6,29 +6,42 @@ use crate::store::{Store, VecStore};
 use crate::test_common::{Item, Sha256Hasher, XOR128};
 use typenum::{Unsigned, U0, U2, U3, U5};
 
-// CONSTRUCTORS
+// Dataset generators
+fn generate_vector_of_elements<E: Element>(leaves: usize) -> Vec<E> {
+    let mut dataset = Vec::<E>::new();
+    for index in 0..leaves {
+        // we are ok with usize -> u8 conversion problems, since we need just predictable dataset
+        let vector: Vec<u8> = (0..E::byte_len()).map(|x| (index + x) as u8).collect();
+        let element = E::from_slice(vector.as_slice());
+        dataset.push(element);
+    }
+    dataset
+}
+
+// Constructors
 fn instantiate_from_data<E: Element, A: Algorithm<E>, S: Store<E>, U: Unsigned>(
-    leafs: usize,
+    leaves: usize,
 ) -> MerkleTree<E, A, S, U> {
-    let mut x = Vec::with_capacity(leafs);
-    for i in 0..leafs {
+    let mut x = Vec::with_capacity(leaves);
+    for i in 0..leaves {
         x.push(i * 93);
     }
     MerkleTree::from_data(&x).expect("failed to instantiate tree [from_data]")
 }
 
 fn instantiate_try_from_iter<E: Element, A: Algorithm<E>, S: Store<E>, U: Unsigned>(
-    leafs: usize,
+    leaves: usize,
 ) -> MerkleTree<E, A, S, U> {
-    let mut dataset = Vec::<E>::new();
-    for index in 0..leafs {
-        // we are ok with usize -> u8 conversion problems, since we need just predictable dataset
-        let vector: Vec<u8> = (0..E::byte_len()).map(|x| (index + x) as u8).collect();
-        let element = E::from_slice(vector.as_slice());
-        dataset.push(element);
-    }
+    let dataset = generate_vector_of_elements::<E>(leaves);
     MerkleTree::try_from_iter(dataset.into_iter().map(Ok))
         .expect("failed to instantiate tree [try_from_iter]")
+}
+
+fn instantiate_new<E: Element, A: Algorithm<E>, S: Store<E>, U: Unsigned>(
+    leaves: usize,
+) -> MerkleTree<E, A, S, U> {
+    let dataset = generate_vector_of_elements::<E>(leaves);
+    MerkleTree::new(dataset).expect("failed to instantiate tree [new]")
 }
 
 fn test_tree_functionality<
@@ -181,14 +194,22 @@ fn test_from_data() {
 }
 
 #[test]
-fn test_try_from_iter() {
+fn test_try_from_iter_group() {
     let base_tree_leaves = 4;
     let expected_total_leaves = base_tree_leaves;
     let root = Item::from_slice(&[29, 0, 28, 0, 4, 0, 4, 0, 12, 0, 12, 0, 4, 0, 4, 0]);
     let len = get_merkle_tree_len_generic::<U2, U0, U0>(base_tree_leaves).unwrap();
-    let from_iter = instantiate_try_from_iter;
+    let try_from_iter = instantiate_try_from_iter;
     run_test_base_tree::<Item, XOR128, VecStore<Item>, U2>(
-        from_iter,
+        try_from_iter,
+        base_tree_leaves,
+        expected_total_leaves,
+        len,
+        root,
+    );
+    let new = instantiate_new;
+    run_test_base_tree::<Item, XOR128, VecStore<Item>, U2>(
+        new,
         base_tree_leaves,
         expected_total_leaves,
         len,
@@ -199,7 +220,14 @@ fn test_try_from_iter() {
     let root = Item::from_slice(&[1, 29, 0, 28, 0, 4, 0, 4, 0, 12, 0, 12, 0, 4, 0, 4]);
     let len = get_merkle_tree_len_generic::<U2, U3, U0>(base_tree_leaves).unwrap();
     run_test_compound_tree::<Item, XOR128, VecStore<Item>, U2, U3>(
-        from_iter,
+        try_from_iter,
+        base_tree_leaves,
+        expected_total_leaves,
+        len,
+        root,
+    );
+    run_test_compound_tree::<Item, XOR128, VecStore<Item>, U2, U3>(
+        new,
         base_tree_leaves,
         expected_total_leaves,
         len,
@@ -210,7 +238,14 @@ fn test_try_from_iter() {
     let root = Item::from_slice(&[5, 1, 29, 0, 28, 0, 4, 0, 4, 0, 12, 0, 12, 0, 4, 0]);
     let len = get_merkle_tree_len_generic::<U2, U3, U5>(base_tree_leaves).unwrap();
     run_test_compound_compound_tree::<Item, XOR128, VecStore<Item>, U2, U3, U5>(
-        from_iter,
+        try_from_iter,
+        base_tree_leaves,
+        expected_total_leaves,
+        len,
+        root,
+    );
+    run_test_compound_compound_tree::<Item, XOR128, VecStore<Item>, U2, U3, U5>(
+        new,
         base_tree_leaves,
         expected_total_leaves,
         len,
