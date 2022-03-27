@@ -42,7 +42,8 @@ fn instantiate_base_tree_from_iter<E: Element, A: Algorithm<E>, S: Store<E>, U: 
         let element = E::from_slice(vector.as_slice());
         dataset.push(element);
     }
-    MerkleTree::try_from_iter(dataset.into_iter().map(Ok)).expect("failed to create base tree from iterator")
+    MerkleTree::try_from_iter(dataset.into_iter().map(Ok))
+        .expect("failed to create base tree from iterator")
 }
 
 fn invoke_tree_tests<
