@@ -1,12 +1,12 @@
 #![cfg(test)]
 
-use crate::hash::Algorithm;
+use crate::hash::{Algorithm, Hashable};
 use crate::merkle::{get_merkle_tree_len_generic, Element, MerkleTree};
 use crate::store::{Store, VecStore};
 use crate::test_common::{Item, Sha256Hasher, XOR128};
 use typenum::{Unsigned, U0, U2, U3, U5};
 
-// Dataset generators
+/// Dataset generators. It is assumed that every generator will produce dataset with particular length, equal to leaves parameter
 fn generate_vector_of_elements<E: Element>(leaves: usize) -> Vec<E> {
     let mut dataset = Vec::<E>::new();
     for index in 0..leaves {
@@ -17,16 +17,20 @@ fn generate_vector_of_elements<E: Element>(leaves: usize) -> Vec<E> {
     }
     dataset
 }
+fn generate_vector_of_usizes(leaves: usize) -> Vec<usize> {
+    let mut dataset = Vec::with_capacity(leaves);
+    for i in 0..leaves {
+        dataset.push(i * 93);
+    }
+    dataset
+}
 
-// Constructors
+/// Constructors
 fn instantiate_from_data<E: Element, A: Algorithm<E>, S: Store<E>, U: Unsigned>(
     leaves: usize,
 ) -> MerkleTree<E, A, S, U> {
-    let mut x = Vec::with_capacity(leaves);
-    for i in 0..leaves {
-        x.push(i * 93);
-    }
-    MerkleTree::from_data(&x).expect("failed to instantiate tree [from_data]")
+    let dataset = generate_vector_of_usizes(leaves);
+    MerkleTree::from_data(dataset.as_slice()).expect("failed to instantiate tree [from_data]")
 }
 
 fn instantiate_try_from_iter<E: Element, A: Algorithm<E>, S: Store<E>, U: Unsigned>(
@@ -42,6 +46,31 @@ fn instantiate_new<E: Element, A: Algorithm<E>, S: Store<E>, U: Unsigned>(
 ) -> MerkleTree<E, A, S, U> {
     let dataset = generate_vector_of_elements::<E>(leaves);
     MerkleTree::new(dataset).expect("failed to instantiate tree [new]")
+}
+
+fn instantiate_from_byte_slice<E: Element, A: Algorithm<E>, S: Store<E>, U: Unsigned>(
+    leaves: usize,
+) -> MerkleTree<E, A, S, U> {
+    let mut a = A::default();
+    let mut a2 = A::default();
+
+    let dataset: Vec<u8> = generate_vector_of_usizes(leaves)
+        .iter()
+        .map(|x| {
+            a.reset();
+            x.hash(&mut a);
+            a.hash()
+        })
+        .take(leaves)
+        .map(|item| {
+            a2.reset();
+            a2.leaf(item).as_ref().to_vec()
+        })
+        .flatten()
+        .collect();
+
+    MerkleTree::from_byte_slice(dataset.as_slice())
+        .expect("failed to instantiate tree [from_byte_slice]")
 }
 
 fn test_tree_functionality<
@@ -156,7 +185,7 @@ fn run_test_compound_compound_tree<
 }
 
 #[test]
-fn test_from_data() {
+fn test_from_data_group() {
     let base_tree_leaves = 4;
     let expected_total_leaves = base_tree_leaves;
     let root = Item::from_slice(&[1, 0, 0, 240, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
@@ -164,6 +193,14 @@ fn test_from_data() {
     let from_data = instantiate_from_data;
     run_test_base_tree::<Item, XOR128, VecStore<Item>, U2>(
         from_data,
+        base_tree_leaves,
+        expected_total_leaves,
+        len,
+        root,
+    );
+    let from_byte_slice = instantiate_from_byte_slice;
+    run_test_base_tree::<Item, XOR128, VecStore<Item>, U2>(
+        from_byte_slice,
         base_tree_leaves,
         expected_total_leaves,
         len,
@@ -180,12 +217,26 @@ fn test_from_data() {
         len,
         root,
     );
+    run_test_compound_tree::<Item, XOR128, VecStore<Item>, U2, U3>(
+        from_byte_slice,
+        base_tree_leaves,
+        expected_total_leaves,
+        len,
+        root,
+    );
 
     let expected_total_leaves = base_tree_leaves * 3 * 5;
     let root = Item::from_slice(&[1, 1, 1, 0, 0, 240, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
     let len = get_merkle_tree_len_generic::<U2, U3, U5>(base_tree_leaves).unwrap();
     run_test_compound_compound_tree::<Item, XOR128, VecStore<Item>, U2, U3, U5>(
         from_data,
+        base_tree_leaves,
+        expected_total_leaves,
+        len,
+        root,
+    );
+    run_test_compound_compound_tree::<Item, XOR128, VecStore<Item>, U2, U3, U5>(
+        from_byte_slice,
         base_tree_leaves,
         expected_total_leaves,
         len,
