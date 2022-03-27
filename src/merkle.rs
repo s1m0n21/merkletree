@@ -2062,7 +2062,7 @@ where
     Ok(())
 }
 #[cfg(test)]
-use typenum::{U1, U4, U11, U16};
+use typenum::{U1, U11, U16, U4};
 
 #[test]
 fn test_get_merkle_tree_methods() {

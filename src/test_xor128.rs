@@ -39,6 +39,7 @@ fn test_vec_tree_from_slice<E: Element, A: Algorithm<E>, U: Unsigned>(
     assert_eq!(mt.len(), len);
     assert_eq!(mt.leafs(), leafs);
     assert_eq!(mt.row_count(), row_count);
+
     for i in 0..num_challenges {
         let index = i * (leafs / num_challenges);
         let p = mt.gen_proof(index).unwrap();
