@@ -113,5 +113,8 @@ mod test_sip;
 /// Tests for Merkle Hasher Customization.
 mod test_cmh;
 
+/// Tests for various tree constructors
+mod test_merkle_constructors;
+
 #[macro_use]
 extern crate arrayref;
