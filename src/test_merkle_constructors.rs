@@ -4,7 +4,7 @@ use crate::hash::{Algorithm, Hashable};
 use crate::merkle::{
     get_merkle_tree_len_generic, Element, FromIndexedParallelIterator, MerkleTree,
 };
-use crate::store::{Store, VecStore};
+use crate::store::{Store, StoreConfig, VecStore};
 use crate::test_common::{Item, Sha256Hasher, XOR128};
 use rayon::iter::{IntoParallelIterator, ParallelIterator};
 use typenum::{Unsigned, U0, U2, U3, U5};
@@ -104,6 +104,20 @@ fn instantiate_from_data_store<E: Element, A: Algorithm<E>, S: Store<E>, U: Unsi
         .expect("failed to instantiate tree [from_data_store]")
 }
 
+fn instantiate_new_with_config<E: Element, A: Algorithm<E>, S: Store<E>, U: Unsigned>(
+    leaves: usize,
+) -> MerkleTree<E, A, S, U> {
+    let dataset = generate_vector_of_elements::<E>(leaves);
+    let tmp_tree = instantiate_new::<E, A, S, U>(leaves);
+    let func_name = "instantiate_new_with_config";
+    MerkleTree::new_with_config(
+        dataset,
+        get_config(leaves, tmp_tree.len(), tmp_tree.row_count(), func_name),
+    )
+    .expect("failed to instantiate tree [new_with_config]")
+}
+
+/// Utilities
 fn serialize_tree<E: Element, A: Algorithm<E>, S: Store<E>, U: Unsigned>(
     tree: MerkleTree<E, A, S, U>,
 ) -> Vec<u8> {
@@ -120,6 +134,22 @@ fn serialize_tree<E: Element, A: Algorithm<E>, S: Store<E>, U: Unsigned>(
         end += E::byte_len();
     }
     serialized_tree
+}
+
+fn get_config(
+    leaves: usize,
+    tree_len: usize,
+    row_count: usize,
+    distinguisher: &str,
+) -> StoreConfig {
+    let replica = format!(
+        "{}-{}-{}-{}-replica",
+        distinguisher, leaves, tree_len, row_count
+    );
+    let temp_dir = tempdir::TempDir::new(distinguisher).unwrap();
+
+    // we attempt to discard all intermediate layers, except bottom one (set of leaves) and top-level root of base tree
+    StoreConfig::new(temp_dir.path(), replica, row_count - 2)
 }
 
 fn test_tree_functionality<
@@ -374,6 +404,14 @@ fn test_try_from_iter_group() {
         len,
         root,
     );
+    let new_with_config = instantiate_new_with_config;
+    run_test_base_tree::<Item, XOR128, VecStore<Item>, U2>(
+        new_with_config,
+        base_tree_leaves,
+        expected_total_leaves,
+        len,
+        root,
+    );
     let from_par_iter = instantiate_from_par_iter;
     run_test_base_tree::<Item, XOR128, VecStore<Item>, U2>(
         from_par_iter,
@@ -401,6 +439,13 @@ fn test_try_from_iter_group() {
         root,
     );
     run_test_compound_tree::<Item, XOR128, VecStore<Item>, U2, U3>(
+        new_with_config,
+        base_tree_leaves,
+        expected_total_leaves,
+        len,
+        root,
+    );
+    run_test_compound_tree::<Item, XOR128, VecStore<Item>, U2, U3>(
         from_par_iter,
         base_tree_leaves,
         expected_total_leaves,
@@ -420,6 +465,13 @@ fn test_try_from_iter_group() {
     );
     run_test_compound_compound_tree::<Item, XOR128, VecStore<Item>, U2, U3, U5>(
         new,
+        base_tree_leaves,
+        expected_total_leaves,
+        len,
+        root,
+    );
+    run_test_compound_compound_tree::<Item, XOR128, VecStore<Item>, U2, U3, U5>(
+        new_with_config,
         base_tree_leaves,
         expected_total_leaves,
         len,
