@@ -88,22 +88,38 @@ fn instantiate_from_tree_slice<E: Element, A: Algorithm<E>, S: Store<E>, U: Unsi
     leaves: usize,
 ) -> MerkleTree<E, A, S, U> {
     let tree = instantiate_new::<E, A, S, U>(leaves);
-    let data = tree
-        .data()
-        .expect("can't get data from storage [from_tree_slice]");
+    let serialized_tree = serialize_tree(tree);
+    MerkleTree::from_tree_slice(serialized_tree.as_slice(), leaves)
+        .expect("failed to instantiate tree [from_tree_slice]")
+}
+
+fn instantiate_from_data_store<E: Element, A: Algorithm<E>, S: Store<E>, U: Unsigned>(
+    leaves: usize,
+) -> MerkleTree<E, A, S, U> {
+    let tree = instantiate_new::<E, A, S, U>(leaves);
+    let serialized_tree = serialize_tree(tree);
+    let store = Store::new_from_slice(serialized_tree.len(), &serialized_tree)
+        .expect("can't create new store over existing one");
+    MerkleTree::from_data_store(store, leaves)
+        .expect("failed to instantiate tree [from_data_store]")
+}
+
+fn serialize_tree<E: Element, A: Algorithm<E>, S: Store<E>, U: Unsigned>(
+    tree: MerkleTree<E, A, S, U>,
+) -> Vec<u8> {
+    let data = tree.data().expect("can't get tree's data [serialize_tree]");
     let data: Vec<E> = data
         .read_range(0..data.len())
-        .expect("can't read data from storage [from_tree_slice]");
-    let mut tree_slice = vec![0u8; E::byte_len() * data.len()];
+        .expect("can't read actual data [serialize_tree]");
+    let mut serialized_tree = vec![0u8; E::byte_len() * data.len()];
     let mut start = 0;
     let mut end = E::byte_len();
     for element in data {
-        element.copy_to_slice(&mut tree_slice[start..end]);
+        element.copy_to_slice(&mut serialized_tree[start..end]);
         start += E::byte_len();
         end += E::byte_len();
     }
-    MerkleTree::from_tree_slice(tree_slice.as_slice(), leaves)
-        .expect("failed to instantiate tree [from_tree_slice]")
+    serialized_tree
 }
 
 fn test_tree_functionality<
@@ -218,7 +234,7 @@ fn run_test_compound_compound_tree<
 }
 
 #[test]
-fn test_from_tree_slice() {
+fn test_from_tree_slice_group() {
     let base_tree_leaves = 4;
     let expected_total_leaves = base_tree_leaves;
     let root = Item::from_slice(&[29, 0, 28, 0, 4, 0, 4, 0, 12, 0, 12, 0, 4, 0, 4, 0]);
@@ -226,6 +242,14 @@ fn test_from_tree_slice() {
     let from_tree_slice = instantiate_from_tree_slice;
     run_test_base_tree::<Item, XOR128, VecStore<Item>, U2>(
         from_tree_slice,
+        base_tree_leaves,
+        expected_total_leaves,
+        len,
+        root,
+    );
+    let from_data_store = instantiate_from_data_store;
+    run_test_base_tree::<Item, XOR128, VecStore<Item>, U2>(
+        from_data_store,
         base_tree_leaves,
         expected_total_leaves,
         len,
@@ -242,11 +266,25 @@ fn test_from_tree_slice() {
         len,
         root,
     );
+    run_test_compound_tree::<Item, XOR128, VecStore<Item>, U2, U3>(
+        from_data_store,
+        base_tree_leaves,
+        expected_total_leaves,
+        len,
+        root,
+    );
     let expected_total_leaves = base_tree_leaves * 3 * 5;
     let root = Item::from_slice(&[5, 1, 29, 0, 28, 0, 4, 0, 4, 0, 12, 0, 12, 0, 4, 0]);
     let len = get_merkle_tree_len_generic::<U2, U3, U5>(base_tree_leaves).unwrap();
     run_test_compound_compound_tree::<Item, XOR128, VecStore<Item>, U2, U3, U5>(
         from_tree_slice,
+        base_tree_leaves,
+        expected_total_leaves,
+        len,
+        root,
+    );
+    run_test_compound_compound_tree::<Item, XOR128, VecStore<Item>, U2, U3, U5>(
+        from_data_store,
         base_tree_leaves,
         expected_total_leaves,
         len,
