@@ -117,6 +117,19 @@ fn instantiate_new_with_config<E: Element, A: Algorithm<E>, S: Store<E>, U: Unsi
     .expect("failed to instantiate tree [new_with_config]")
 }
 
+fn instantiate_try_from_iter_with_config<E: Element, A: Algorithm<E>, S: Store<E>, U: Unsigned>(
+    leaves: usize,
+) -> MerkleTree<E, A, S, U> {
+    let dataset = generate_vector_of_elements::<E>(leaves);
+    let tmp_tree = instantiate_try_from_iter::<E, A, S, U>(leaves);
+    let func_name = "instantiate_try_from_iter_with_config";
+    MerkleTree::try_from_iter_with_config(
+        dataset.into_iter().map(Ok),
+        get_config(leaves, tmp_tree.len(), tmp_tree.row_count(), func_name),
+    )
+    .expect("failed to instantiate tree [try_from_iter_with_config]")
+}
+
 /// Utilities
 fn serialize_tree<E: Element, A: Algorithm<E>, S: Store<E>, U: Unsigned>(
     tree: MerkleTree<E, A, S, U>,
@@ -396,6 +409,14 @@ fn test_try_from_iter_group() {
         len,
         root,
     );
+    let try_from_iter_with_config = instantiate_try_from_iter_with_config;
+    run_test_base_tree::<Item, XOR128, VecStore<Item>, U2>(
+        try_from_iter_with_config,
+        base_tree_leaves,
+        expected_total_leaves,
+        len,
+        root,
+    );
     let new = instantiate_new;
     run_test_base_tree::<Item, XOR128, VecStore<Item>, U2>(
         new,
@@ -432,6 +453,13 @@ fn test_try_from_iter_group() {
         root,
     );
     run_test_compound_tree::<Item, XOR128, VecStore<Item>, U2, U3>(
+        try_from_iter_with_config,
+        base_tree_leaves,
+        expected_total_leaves,
+        len,
+        root,
+    );
+    run_test_compound_tree::<Item, XOR128, VecStore<Item>, U2, U3>(
         new,
         base_tree_leaves,
         expected_total_leaves,
@@ -458,6 +486,13 @@ fn test_try_from_iter_group() {
     let len = get_merkle_tree_len_generic::<U2, U3, U5>(base_tree_leaves).unwrap();
     run_test_compound_compound_tree::<Item, XOR128, VecStore<Item>, U2, U3, U5>(
         try_from_iter,
+        base_tree_leaves,
+        expected_total_leaves,
+        len,
+        root,
+    );
+    run_test_compound_compound_tree::<Item, XOR128, VecStore<Item>, U2, U3, U5>(
+        try_from_iter_with_config,
         base_tree_leaves,
         expected_total_leaves,
         len,
