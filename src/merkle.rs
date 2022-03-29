@@ -493,7 +493,7 @@ impl<
 
         let store = S::new_from_slice_with_config(tree_len, branches, &data, config)
             .context("failed to create data store")?;
-        let root = store.read_at(data.len() - 1)?;
+        let root = store.read_at(store.len() - 1)?;
 
         Ok(MerkleTree {
             data: Data::BaseTree(store),

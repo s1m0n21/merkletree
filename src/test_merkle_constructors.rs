@@ -143,6 +143,27 @@ fn instantiate_from_data_with_config<E: Element, A: Algorithm<E>, S: Store<E>, U
     .expect("failed to instantiate tree [from_data_with_config]")
 }
 
+fn instantiate_from_tree_slice_with_config<
+    E: Element,
+    A: Algorithm<E>,
+    S: Store<E>,
+    U: Unsigned,
+>(
+    leaves: usize,
+) -> MerkleTree<E, A, S, U> {
+    let tmp_tree = instantiate_new::<E, A, S, U>(leaves);
+    let tree_len = tmp_tree.len();
+    let row_count = tmp_tree.row_count();
+    let serialized_tree = serialize_tree(tmp_tree);
+    let func_name = "instantiate_from_tree_slice_with_config";
+    MerkleTree::from_tree_slice_with_config(
+        serialized_tree.as_slice(),
+        leaves,
+        get_config(leaves, tree_len, row_count, func_name),
+    )
+    .expect("failed to instantiate tree [instantiate_from_tree_slice_with_config]")
+}
+
 /// Utilities
 fn serialize_tree<E: Element, A: Algorithm<E>, S: Store<E>, U: Unsigned>(
     tree: MerkleTree<E, A, S, U>,
@@ -303,6 +324,15 @@ fn test_from_tree_slice_group() {
         len,
         root,
     );
+    let from_tree_slice_with_config = instantiate_from_tree_slice_with_config;
+    run_test_base_tree::<Item, XOR128, VecStore<Item>, U2>(
+        from_tree_slice_with_config,
+        base_tree_leaves,
+        expected_total_leaves,
+        len,
+        root,
+    );
+
     let from_data_store = instantiate_from_data_store;
     run_test_base_tree::<Item, XOR128, VecStore<Item>, U2>(
         from_data_store,
@@ -323,6 +353,13 @@ fn test_from_tree_slice_group() {
         root,
     );
     run_test_compound_tree::<Item, XOR128, VecStore<Item>, U2, U3>(
+        from_tree_slice_with_config,
+        base_tree_leaves,
+        expected_total_leaves,
+        len,
+        root,
+    );
+    run_test_compound_tree::<Item, XOR128, VecStore<Item>, U2, U3>(
         from_data_store,
         base_tree_leaves,
         expected_total_leaves,
@@ -334,6 +371,13 @@ fn test_from_tree_slice_group() {
     let len = get_merkle_tree_len_generic::<U2, U3, U5>(base_tree_leaves).unwrap();
     run_test_compound_compound_tree::<Item, XOR128, VecStore<Item>, U2, U3, U5>(
         from_tree_slice,
+        base_tree_leaves,
+        expected_total_leaves,
+        len,
+        root,
+    );
+    run_test_compound_compound_tree::<Item, XOR128, VecStore<Item>, U2, U3, U5>(
+        from_tree_slice_with_config,
         base_tree_leaves,
         expected_total_leaves,
         len,
