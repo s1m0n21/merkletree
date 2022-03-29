@@ -84,6 +84,28 @@ fn instantiate_from_par_iter<E: Element, A: Algorithm<E>, S: Store<E>, U: Unsign
         .expect("failed to instantiate tree [try_from_par_iter]")
 }
 
+fn instantiate_from_tree_slice<E: Element, A: Algorithm<E>, S: Store<E>, U: Unsigned>(
+    leaves: usize,
+) -> MerkleTree<E, A, S, U> {
+    let tree = instantiate_new::<E, A, S, U>(leaves);
+    let data = tree
+        .data()
+        .expect("can't get data from storage [from_tree_slice]");
+    let data: Vec<E> = data
+        .read_range(0..data.len())
+        .expect("can't read data from storage [from_tree_slice]");
+    let mut tree_slice = vec![0u8; E::byte_len() * data.len()];
+    let mut start = 0;
+    let mut end = E::byte_len();
+    for element in data {
+        element.copy_to_slice(&mut tree_slice[start..end]);
+        start += E::byte_len();
+        end += E::byte_len();
+    }
+    MerkleTree::from_tree_slice(tree_slice.as_slice(), leaves)
+        .expect("failed to instantiate tree [from_tree_slice]")
+}
+
 fn test_tree_functionality<
     E: Element,
     A: Algorithm<E>,
@@ -192,6 +214,43 @@ fn run_test_compound_compound_tree<
         expected_leaves,
         expected_len,
         expected_root,
+    );
+}
+
+#[test]
+fn test_from_tree_slice() {
+    let base_tree_leaves = 4;
+    let expected_total_leaves = base_tree_leaves;
+    let root = Item::from_slice(&[29, 0, 28, 0, 4, 0, 4, 0, 12, 0, 12, 0, 4, 0, 4, 0]);
+    let len = get_merkle_tree_len_generic::<U2, U0, U0>(base_tree_leaves).unwrap();
+    let from_tree_slice = instantiate_from_tree_slice;
+    run_test_base_tree::<Item, XOR128, VecStore<Item>, U2>(
+        from_tree_slice,
+        base_tree_leaves,
+        expected_total_leaves,
+        len,
+        root,
+    );
+
+    let expected_total_leaves = base_tree_leaves * 3;
+    let root = Item::from_slice(&[1, 29, 0, 28, 0, 4, 0, 4, 0, 12, 0, 12, 0, 4, 0, 4]);
+    let len = get_merkle_tree_len_generic::<U2, U3, U0>(base_tree_leaves).unwrap();
+    run_test_compound_tree::<Item, XOR128, VecStore<Item>, U2, U3>(
+        from_tree_slice,
+        base_tree_leaves,
+        expected_total_leaves,
+        len,
+        root,
+    );
+    let expected_total_leaves = base_tree_leaves * 3 * 5;
+    let root = Item::from_slice(&[5, 1, 29, 0, 28, 0, 4, 0, 4, 0, 12, 0, 12, 0, 4, 0]);
+    let len = get_merkle_tree_len_generic::<U2, U3, U5>(base_tree_leaves).unwrap();
+    run_test_compound_compound_tree::<Item, XOR128, VecStore<Item>, U2, U3, U5>(
+        from_tree_slice,
+        base_tree_leaves,
+        expected_total_leaves,
+        len,
+        root,
     );
 }
 
