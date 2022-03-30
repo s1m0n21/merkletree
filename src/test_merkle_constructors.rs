@@ -2,7 +2,8 @@
 
 use crate::hash::{Algorithm, Hashable};
 use crate::merkle::{
-    get_merkle_tree_len_generic, Element, FromIndexedParallelIterator, MerkleTree,
+    get_merkle_proof_lemma_len, get_merkle_tree_len_generic, Element, FromIndexedParallelIterator,
+    MerkleTree,
 };
 use crate::store::{Store, StoreConfig, VecStore};
 use crate::test_common::{Item, Sha256Hasher, XOR128};
@@ -161,7 +162,20 @@ fn instantiate_from_tree_slice_with_config<
         leaves,
         get_config(leaves, tree_len, row_count, func_name),
     )
-    .expect("failed to instantiate tree [instantiate_from_tree_slice_with_config]")
+    .expect("failed to instantiate tree [from_tree_slice_with_config]")
+}
+
+fn instantiate_from_par_iter_with_config<E: Element, A: Algorithm<E>, S: Store<E>, U: Unsigned>(
+    leaves: usize,
+) -> MerkleTree<E, A, S, U> {
+    let dataset = generate_vector_of_elements::<E>(leaves);
+    let tmp_tree = instantiate_from_par_iter::<E, A, S, U>(leaves);
+    let func_name = "instantiate_from_par_iter_with_config";
+    MerkleTree::from_par_iter_with_config(
+        dataset,
+        get_config(leaves, tmp_tree.len(), tmp_tree.row_count(), func_name),
+    )
+    .expect("failed to instantiate tree [from_par_iter_with_config]")
 }
 
 /// Utilities
@@ -520,6 +534,14 @@ fn test_try_from_iter_group() {
         len,
         root,
     );
+    let from_par_iter_with_config = instantiate_from_par_iter_with_config;
+    run_test_base_tree::<Item, XOR128, VecStore<Item>, U2>(
+        from_par_iter_with_config,
+        base_tree_leaves,
+        expected_total_leaves,
+        len,
+        root,
+    );
 
     let expected_total_leaves = base_tree_leaves * 3;
     let root = Item::from_slice(&[1, 29, 0, 28, 0, 4, 0, 4, 0, 12, 0, 12, 0, 4, 0, 4]);
@@ -559,6 +581,13 @@ fn test_try_from_iter_group() {
         len,
         root,
     );
+    run_test_compound_tree::<Item, XOR128, VecStore<Item>, U2, U3>(
+        from_par_iter_with_config,
+        base_tree_leaves,
+        expected_total_leaves,
+        len,
+        root,
+    );
 
     let expected_total_leaves = base_tree_leaves * 3 * 5;
     let root = Item::from_slice(&[5, 1, 29, 0, 28, 0, 4, 0, 4, 0, 12, 0, 12, 0, 4, 0]);
@@ -593,6 +622,13 @@ fn test_try_from_iter_group() {
     );
     run_test_compound_compound_tree::<Item, XOR128, VecStore<Item>, U2, U3, U5>(
         from_par_iter,
+        base_tree_leaves,
+        expected_total_leaves,
+        len,
+        root,
+    );
+    run_test_compound_compound_tree::<Item, XOR128, VecStore<Item>, U2, U3, U5>(
+        from_par_iter_with_config,
         base_tree_leaves,
         expected_total_leaves,
         len,
