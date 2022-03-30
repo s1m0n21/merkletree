@@ -29,6 +29,28 @@ fn generate_vector_of_usizes(leaves: usize) -> Vec<usize> {
     dataset
 }
 
+fn generate_byte_slice_tree<E: Element, A: Algorithm<E>>(leaves: usize) -> Vec<u8> {
+    let mut a = A::default();
+    let mut a2 = A::default();
+
+    let dataset: Vec<u8> = generate_vector_of_usizes(leaves)
+        .iter()
+        .map(|x| {
+            a.reset();
+            x.hash(&mut a);
+            a.hash()
+        })
+        .take(leaves)
+        .map(|item| {
+            a2.reset();
+            a2.leaf(item).as_ref().to_vec()
+        })
+        .flatten()
+        .collect();
+
+    dataset
+}
+
 /// Constructors
 fn instantiate_from_data<E: Element, A: Algorithm<E>, S: Store<E>, U: Unsigned>(
     leaves: usize,
@@ -55,24 +77,7 @@ fn instantiate_new<E: Element, A: Algorithm<E>, S: Store<E>, U: Unsigned>(
 fn instantiate_from_byte_slice<E: Element, A: Algorithm<E>, S: Store<E>, U: Unsigned>(
     leaves: usize,
 ) -> MerkleTree<E, A, S, U> {
-    let mut a = A::default();
-    let mut a2 = A::default();
-
-    let dataset: Vec<u8> = generate_vector_of_usizes(leaves)
-        .iter()
-        .map(|x| {
-            a.reset();
-            x.hash(&mut a);
-            a.hash()
-        })
-        .take(leaves)
-        .map(|item| {
-            a2.reset();
-            a2.leaf(item).as_ref().to_vec()
-        })
-        .flatten()
-        .collect();
-
+    let dataset = generate_byte_slice_tree::<E, A>(leaves);
     MerkleTree::from_byte_slice(dataset.as_slice())
         .expect("failed to instantiate tree [from_byte_slice]")
 }
@@ -176,6 +181,24 @@ fn instantiate_from_par_iter_with_config<E: Element, A: Algorithm<E>, S: Store<E
         get_config(leaves, tmp_tree.len(), tmp_tree.row_count(), func_name),
     )
     .expect("failed to instantiate tree [from_par_iter_with_config]")
+}
+
+fn instantiate_from_byte_slice_with_config<
+    E: Element,
+    A: Algorithm<E>,
+    S: Store<E>,
+    U: Unsigned,
+>(
+    leaves: usize,
+) -> MerkleTree<E, A, S, U> {
+    let dataset = generate_byte_slice_tree::<E, A>(leaves);
+    let tmp_tree = instantiate_from_byte_slice::<E, A, S, U>(leaves);
+    let func_name = "instantiate_from_byte_slice_with_config";
+    MerkleTree::from_byte_slice_with_config(
+        dataset.as_slice(),
+        get_config(leaves, tmp_tree.len(), tmp_tree.row_count(), func_name),
+    )
+    .expect("failed to instantiate tree [from_byte_slice_with_config]")
 }
 
 /// Utilities
@@ -436,6 +459,14 @@ fn test_from_data_group() {
         len,
         root,
     );
+    let from_byte_slice_with_config = instantiate_from_byte_slice_with_config;
+    run_test_base_tree::<Item, XOR128, VecStore<Item>, U2>(
+        from_byte_slice_with_config,
+        base_tree_leaves,
+        expected_total_leaves,
+        len,
+        root,
+    );
 
     let expected_total_leaves = base_tree_leaves * 3;
     let root = Item::from_slice(&[1, 1, 0, 0, 240, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
@@ -461,6 +492,13 @@ fn test_from_data_group() {
         len,
         root,
     );
+    run_test_compound_tree::<Item, XOR128, VecStore<Item>, U2, U3>(
+        from_byte_slice_with_config,
+        base_tree_leaves,
+        expected_total_leaves,
+        len,
+        root,
+    );
 
     let expected_total_leaves = base_tree_leaves * 3 * 5;
     let root = Item::from_slice(&[1, 1, 1, 0, 0, 240, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
@@ -481,6 +519,13 @@ fn test_from_data_group() {
     );
     run_test_compound_compound_tree::<Item, XOR128, VecStore<Item>, U2, U3, U5>(
         from_byte_slice,
+        base_tree_leaves,
+        expected_total_leaves,
+        len,
+        root,
+    );
+    run_test_compound_compound_tree::<Item, XOR128, VecStore<Item>, U2, U3, U5>(
+        from_byte_slice_with_config,
         base_tree_leaves,
         expected_total_leaves,
         len,
