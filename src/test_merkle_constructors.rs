@@ -276,6 +276,31 @@ fn instantiate_cctree_from_sub_trees<
         .expect("failed to instantiate compound-compound tree from compound trees [from_sub_trees]")
 }
 
+fn instantiate_cctree_from_sub_trees_as_trees<
+    E: Element,
+    A: Algorithm<E>,
+    S: Store<E>,
+    BaseTreeArity: Unsigned,
+    SubTreeArity: Unsigned,
+    TopTreeArity: Unsigned,
+>(
+    base_tree_constructor: fn(usize) -> MerkleTree<E, A, S, BaseTreeArity>,
+    _compound_tree_constructor: fn(
+        fn(usize) -> MerkleTree<E, A, S, BaseTreeArity>,
+        usize,
+    ) -> MerkleTree<E, A, S, BaseTreeArity, SubTreeArity>,
+    base_tree_leaves: usize,
+) -> MerkleTree<E, A, S, BaseTreeArity, SubTreeArity, TopTreeArity> {
+    let mut base_trees: Vec<MerkleTree<E, A, S, BaseTreeArity, U0, U0>> = Vec::new();
+    for _ in 0..TopTreeArity::to_usize() {
+        for _ in 0..SubTreeArity::to_usize() {
+            base_trees.push(base_tree_constructor(base_tree_leaves));
+        }
+    }
+    MerkleTree::from_sub_trees_as_trees(base_trees)
+        .expect("failed to instantiate compound-compound tree from set of base trees [from_sub_trees_as_trees]")
+}
+
 /// Utilities
 fn serialize_tree<E: Element, A: Algorithm<E>, S: Store<E>, U: Unsigned>(
     tree: MerkleTree<E, A, S, U>,
@@ -500,6 +525,16 @@ fn test_from_tree_slice_group() {
         len,
         root,
     );
+    let from_sub_trees_as_trees = instantiate_cctree_from_sub_trees_as_trees;
+    run_test_compound_compound_tree::<Item, XOR128, VecStore<Item>, U2, U3, U5>(
+        from_tree_slice,
+        from_trees,
+        from_sub_trees_as_trees,
+        base_tree_leaves,
+        expected_total_leaves,
+        len,
+        root,
+    );
 }
 
 #[test]
@@ -571,6 +606,16 @@ fn test_from_data_group() {
         from_data,
         from_trees,
         from_sub_trees,
+        base_tree_leaves,
+        expected_total_leaves,
+        len,
+        root,
+    );
+    let from_sub_trees_as_trees = instantiate_cctree_from_sub_trees_as_trees;
+    run_test_compound_compound_tree::<Item, XOR128, VecStore<Item>, U2, U3, U5>(
+        from_data,
+        from_trees,
+        from_sub_trees_as_trees,
         base_tree_leaves,
         expected_total_leaves,
         len,
@@ -664,6 +709,16 @@ fn test_try_from_iter_group() {
         try_from_iter,
         from_trees,
         from_sub_trees,
+        base_tree_leaves,
+        expected_total_leaves,
+        len,
+        root,
+    );
+    let from_sub_trees_as_trees = instantiate_cctree_from_sub_trees_as_trees;
+    run_test_compound_compound_tree::<Item, XOR128, VecStore<Item>, U2, U3, U5>(
+        try_from_iter,
+        from_trees,
+        from_sub_trees_as_trees,
         base_tree_leaves,
         expected_total_leaves,
         len,

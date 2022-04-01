@@ -655,22 +655,22 @@ impl<
             "All passed in trees must have the same length"
         );
 
-        let sub_tree_count = TopTreeArity::to_usize();
-        let top_layer_nodes = sub_tree_count * SubTreeArity::to_usize();
+        let top_tree_arity = TopTreeArity::to_usize();
+        let sub_tree_arity = SubTreeArity::to_usize();
+        let top_layer_nodes = top_tree_arity * sub_tree_arity;
         ensure!(
             trees.len() == top_layer_nodes,
             "Length of trees MUST equal the number of top layer nodes"
         );
 
         // Group the trees appropriately into sub-tree ready vectors.
-        let mut grouped_trees = Vec::with_capacity(sub_tree_count);
-        for _ in (0..sub_tree_count).step_by(trees.len() / sub_tree_count) {
-            grouped_trees.push(trees.split_off(trees.len() / sub_tree_count));
+        let mut grouped_trees = Vec::with_capacity(top_tree_arity);
+        for _ in 0..top_tree_arity {
+            grouped_trees.push(trees.split_off(trees.len() - sub_tree_arity));
         }
-        grouped_trees.insert(0, trees);
 
         let mut sub_trees: Vec<MerkleTree<E, A, S, BaseTreeArity, SubTreeArity>> =
-            Vec::with_capacity(sub_tree_count);
+            Vec::with_capacity(top_tree_arity);
         for group in grouped_trees {
             sub_trees.push(MerkleTree::from_trees(group)?);
         }
