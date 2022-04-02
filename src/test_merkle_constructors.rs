@@ -52,6 +52,42 @@ fn generate_byte_slice_tree<E: Element, A: Algorithm<E>>(leaves: usize) -> Vec<u
     dataset
 }
 
+fn generate_vector_of_base_trees<
+    E: Element,
+    A: Algorithm<E>,
+    S: Store<E>,
+    BaseTreeArity: Unsigned,
+    SubTreeArity: Unsigned,
+>(
+    base_tree_constructor: fn(usize) -> MerkleTree<E, A, S, BaseTreeArity>,
+    base_tree_leaves: usize,
+) -> Vec<MerkleTree<E, A, S, BaseTreeArity>> {
+    let mut base_trees: Vec<MerkleTree<E, A, S, BaseTreeArity, U0, U0>> = Vec::new();
+    for _ in 0..SubTreeArity::to_usize() {
+        base_trees.push(base_tree_constructor(base_tree_leaves));
+    }
+    base_trees
+}
+
+fn generate_vector_of_base_trees_as_bytes<
+    E: Element,
+    A: Algorithm<E>,
+    S: Store<E>,
+    BaseTreeArity: Unsigned,
+    SubTreeArity: Unsigned,
+>(
+    base_tree_constructor: fn(usize) -> MerkleTree<E, A, S, BaseTreeArity>,
+    base_tree_leaves: usize,
+) -> Vec<Vec<u8>> {
+    let mut base_trees: Vec<Vec<u8>> = Vec::new();
+    for _ in 0..SubTreeArity::to_usize() {
+        let base_tree = base_tree_constructor(base_tree_leaves);
+        let serialized_tree = serialize_tree(base_tree);
+        base_trees.push(serialized_tree);
+    }
+    base_trees
+}
+
 /// Base tree constructors
 fn instantiate_from_data<E: Element, A: Algorithm<E>, S: Store<E>, U: Unsigned>(
     leaves: usize,
@@ -213,10 +249,10 @@ fn instantiate_ctree_from_trees<
     base_tree_constructor: fn(usize) -> MerkleTree<E, A, S, BaseTreeArity>,
     base_tree_leaves: usize,
 ) -> MerkleTree<E, A, S, BaseTreeArity, SubTreeArity> {
-    let mut base_trees: Vec<MerkleTree<E, A, S, BaseTreeArity, U0, U0>> = Vec::new();
-    for _ in 0..SubTreeArity::to_usize() {
-        base_trees.push(base_tree_constructor(base_tree_leaves));
-    }
+    let base_trees = generate_vector_of_base_trees::<E, A, S, BaseTreeArity, SubTreeArity>(
+        base_tree_constructor,
+        base_tree_leaves,
+    );
     MerkleTree::from_trees(base_trees).expect("failed to instantiate compound tree [from_trees]")
 }
 
@@ -230,11 +266,10 @@ fn instantiate_ctree_from_stores<
     base_tree_constructor: fn(usize) -> MerkleTree<E, A, S, BaseTreeArity>,
     base_tree_leaves: usize,
 ) -> MerkleTree<E, A, S, BaseTreeArity, SubTreeArity> {
-    let mut base_trees: Vec<MerkleTree<E, A, S, BaseTreeArity, U0, U0>> = Vec::new();
-    for _ in 0..SubTreeArity::to_usize() {
-        base_trees.push(base_tree_constructor(base_tree_leaves));
-    }
-
+    let base_trees = generate_vector_of_base_trees::<E, A, S, BaseTreeArity, SubTreeArity>(
+        base_tree_constructor,
+        base_tree_leaves,
+    );
     let mut stores = Vec::new();
     for tree in base_trees {
         let serialized_tree = serialize_tree(tree);
@@ -247,6 +282,29 @@ fn instantiate_ctree_from_stores<
     let tree = MerkleTree::from_stores(base_tree_leaves, stores)
         .expect("failed to instantiate compound tree [from_slices]");
     tree
+}
+
+fn instantiate_ctree_from_slices<
+    E: Element,
+    A: Algorithm<E>,
+    S: Store<E>,
+    BaseTreeArity: Unsigned,
+    SubTreeArity: Unsigned,
+>(
+    base_tree_constructor: fn(usize) -> MerkleTree<E, A, S, BaseTreeArity>,
+    base_tree_leaves: usize,
+) -> MerkleTree<E, A, S, BaseTreeArity, SubTreeArity> {
+    let base_trees = generate_vector_of_base_trees_as_bytes::<E, A, S, BaseTreeArity, SubTreeArity>(
+        base_tree_constructor,
+        base_tree_leaves,
+    );
+    let vec_of_slices: Vec<&[u8]> = base_trees.iter().map(|x| &x[..]).collect();
+
+    MerkleTree::<E, A, S, BaseTreeArity, SubTreeArity>::from_slices(
+        &vec_of_slices[..],
+        base_tree_leaves,
+    )
+    .expect("failed to instantiate compound tree from set of base trees [from_slices]")
 }
 
 /// Compound-compound tree constructors
@@ -511,6 +569,15 @@ fn test_from_tree_slice_group() {
         len,
         root,
     );
+    let from_slices = instantiate_ctree_from_slices;
+    run_test_compound_tree::<Item, XOR128, VecStore<Item>, U2, U3>(
+        from_tree_slice,
+        from_slices,
+        base_tree_leaves,
+        expected_total_leaves,
+        len,
+        root,
+    );
 
     let expected_total_leaves = base_tree_leaves * 3 * 5;
     let root = Item::from_slice(&[5, 1, 29, 0, 28, 0, 4, 0, 4, 0, 12, 0, 12, 0, 4, 0]);
@@ -592,6 +659,15 @@ fn test_from_data_group() {
     run_test_compound_tree::<Item, XOR128, VecStore<Item>, U2, U3>(
         from_data,
         from_stores,
+        base_tree_leaves,
+        expected_total_leaves,
+        len,
+        root,
+    );
+    let from_slices = instantiate_ctree_from_slices;
+    run_test_compound_tree::<Item, XOR128, VecStore<Item>, U2, U3>(
+        from_data,
+        from_slices,
         base_tree_leaves,
         expected_total_leaves,
         len,
@@ -695,6 +771,15 @@ fn test_try_from_iter_group() {
     run_test_compound_tree::<Item, XOR128, VecStore<Item>, U2, U3>(
         try_from_iter,
         from_stores,
+        base_tree_leaves,
+        expected_total_leaves,
+        len,
+        root,
+    );
+    let from_slices = instantiate_ctree_from_slices;
+    run_test_compound_tree::<Item, XOR128, VecStore<Item>, U2, U3>(
+        try_from_iter,
+        from_slices,
         base_tree_leaves,
         expected_total_leaves,
         len,
