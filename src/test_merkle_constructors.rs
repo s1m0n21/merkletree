@@ -1,5 +1,13 @@
 #![cfg(test)]
 
+use std::env::temp_dir;
+use std::io::Write;
+use std::iter::FromIterator;
+use std::path::PathBuf;
+
+use rayon::iter::IntoParallelIterator;
+use typenum::{Unsigned, U0, U2, U3, U5};
+
 use crate::hash::{Algorithm, Hashable};
 use crate::merkle::{
     get_merkle_tree_len_generic, get_merkle_tree_row_count, Element, FromIndexedParallelIterator,
@@ -7,30 +15,19 @@ use crate::merkle::{
 };
 use crate::store::{DiskStore, LevelCacheStore, ReplicaConfig, Store, StoreConfig, VecStore};
 use crate::test_common::{Item, XOR128};
-use rayon::iter::IntoParallelIterator;
-use std::env::temp_dir;
-use std::io::Write;
-use std::path::PathBuf;
-use typenum::{Unsigned, U0, U2, U3, U5};
 
 /// Dataset generators. It is assumed that every generator will produce dataset with particular length, equal to leaves parameter
 fn generate_vector_of_elements<E: Element>(leaves: usize) -> Vec<E> {
-    let mut dataset = Vec::<E>::new();
-    for index in 0..leaves {
+    let result = (0..leaves).map(|index| {
         // we are ok with usize -> u8 conversion problems, since we need just predictable dataset
         let vector: Vec<u8> = (0..E::byte_len()).map(|x| (index + x) as u8).collect();
-        let element = E::from_slice(vector.as_slice());
-        dataset.push(element);
-    }
-    dataset
+        E::from_slice(vector.as_slice())
+    });
+    result.collect()
 }
 
 fn generate_vector_of_usizes(leaves: usize) -> Vec<usize> {
-    let mut dataset = Vec::with_capacity(leaves);
-    for i in 0..leaves {
-        dataset.push(i * 93);
-    }
-    dataset
+    (0..leaves).map(|index| index * 93).collect()
 }
 
 fn generate_byte_slice_tree<E: Element, A: Algorithm<E>>(leaves: usize) -> Vec<u8> {

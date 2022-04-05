@@ -1810,6 +1810,8 @@ impl Element for [u8; 32] {
     }
 }
 
+/// This function calculates length of the generic tree by taking values from arity parameters.
+/// E.g. it can be used for base / compound / compound-compound trees.
 pub fn get_merkle_tree_len_generic<
     BaseTreeArity: Unsigned,
     SubTreeArity: Unsigned,
@@ -1821,12 +1823,7 @@ pub fn get_merkle_tree_len_generic<
     let sub_tree_arity = SubTreeArity::to_usize();
     let base_tree_arity = BaseTreeArity::to_usize();
 
-    let base_tree_len = match get_merkle_tree_len(leaves, base_tree_arity) {
-        Err(e) => {
-            return Err(e);
-        }
-        Ok(value) => value,
-    };
+    let base_tree_len = get_merkle_tree_len(leaves, base_tree_arity)?;
 
     if top_tree_arity > 0 {
         return Ok(1 + top_tree_arity + sub_tree_arity * top_tree_arity * base_tree_len);
@@ -2074,6 +2071,7 @@ fn test_get_merkle_tree_methods() {
     assert!(get_merkle_tree_len(1, 2).is_err());
     assert!(get_merkle_tree_len(4, 16).is_err());
     assert!(get_merkle_tree_len(1024, 11).is_err());
+
     assert!(get_merkle_tree_len_generic::<U4, U0, U0>(16).is_ok());
     assert!(get_merkle_tree_len_generic::<U1, U0, U0>(3).is_ok());
     assert!(get_merkle_tree_len_generic::<U0, U0, U0>(0).is_err());
@@ -2081,6 +2079,19 @@ fn test_get_merkle_tree_methods() {
     assert!(get_merkle_tree_len_generic::<U2, U0, U0>(1).is_err());
     assert!(get_merkle_tree_len_generic::<U16, U0, U0>(4).is_err());
     assert!(get_merkle_tree_len_generic::<U11, U0, U0>(1024).is_err());
+
+    assert_eq!(
+        get_merkle_tree_len_generic::<U2, U0, U0>(16).unwrap(),
+        16 + 8 + 4 + 2 + 1
+    );
+    assert_eq!(
+        get_merkle_tree_len_generic::<U2, U4, U0>(16).unwrap(),
+        (16 + 8 + 4 + 2 + 1) * 4 + 1
+    );
+    assert_eq!(
+        get_merkle_tree_len_generic::<U2, U4, U2>(16).unwrap(),
+        ((16 + 8 + 4 + 2 + 1) * 4 + 1) * 2 + 1
+    );
 
     assert!(get_merkle_tree_leafs(31, 2).is_ok());
     assert!(get_merkle_tree_leafs(15, 2).is_ok());
