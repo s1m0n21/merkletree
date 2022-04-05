@@ -5,10 +5,12 @@ use crate::merkle::{
     get_merkle_tree_len_generic, get_merkle_tree_row_count, Element, FromIndexedParallelIterator,
     MerkleTree,
 };
-use crate::store::{DiskStore, Store, StoreConfig, VecStore};
+use crate::store::{DiskStore, LevelCacheStore, ReplicaConfig, Store, StoreConfig, VecStore};
 use crate::test_common::{Item, XOR128};
 use rayon::iter::IntoParallelIterator;
-use std::path::Path;
+use std::env::temp_dir;
+use std::io::Write;
+use std::path::PathBuf;
 use typenum::{Unsigned, U0, U2, U3, U5};
 
 /// Dataset generators. It is assumed that every generator will produce dataset with particular length, equal to leaves parameter
@@ -391,6 +393,66 @@ fn instantiate_ctree_from_store_configs<
         .expect("failed to instantiate compound tree [from_store_configs]")
 }
 
+fn instantiate_ctree_from_store_configs_and_replica<
+    E: Element,
+    A: Algorithm<E>,
+    BaseTreeArity: Unsigned,
+    SubTreeArity: Unsigned,
+>(
+    base_tree_leaves: usize,
+    temp_dir_path: &PathBuf,
+    rows_to_discard: Option<usize>,
+) -> MerkleTree<E, A, LevelCacheStore<E, std::fs::File>, BaseTreeArity, SubTreeArity> {
+    let replica_path = StoreConfig::data_path(temp_dir_path, "replica_path");
+    let mut replica_file = std::fs::File::create(&replica_path)
+        .expect("failed to create replica file [from_store_configs_and_replica]");
+
+    let mut replica_config_offsets = Vec::new();
+    let mut vec_of_configs = Vec::new();
+
+    for index in 0..SubTreeArity::to_usize() {
+        // prepare replica file content
+        let config = StoreConfig::new(
+            temp_dir_path,
+            format!("{}{}", String::from("config_id"), index.to_string()),
+            rows_to_discard.expect("can't get rows_to_discard [from_store_configs_and_replica]"),
+        );
+        // instantiation of this temp tree is required for binding config to actual file on disk for subsequent dumping the data to replica
+        let tree = instantiate_try_from_iter_with_config::<E, A, DiskStore<E>, BaseTreeArity>(
+            base_tree_leaves,
+            Some(config.clone()),
+        );
+        dump_tree_data_to_replica::<E, BaseTreeArity>(
+            tree.leafs(),
+            tree.len(),
+            &config,
+            &mut replica_file,
+        );
+
+        // generate valid configs and bind them each to actual data of the tree
+        let lc_config = StoreConfig::from_config(
+            &config,
+            format!("{}{}", String::from("lc_config_id"), index.to_string()),
+            Some(tree.len()),
+        );
+        let mut tree = instantiate_try_from_iter_with_config::<
+            E,
+            A,
+            LevelCacheStore<E, std::fs::File>,
+            BaseTreeArity,
+        >(base_tree_leaves, Some(lc_config.clone()));
+        tree.set_external_reader_path(&replica_path)
+            .expect("can't set external reader path [from_store_configs_and_replica]");
+
+        replica_config_offsets.push(index * E::byte_len() * base_tree_leaves);
+        vec_of_configs.push(lc_config);
+    }
+
+    let replica_config = ReplicaConfig::new(&replica_path, replica_config_offsets);
+    MerkleTree::from_store_configs_and_replica(base_tree_leaves, &vec_of_configs, &replica_config)
+        .expect("failed to instantiate compound tree [from_store_configs_and_replica]")
+}
+
 /// Compound-compound tree constructors
 fn instantiate_cctree_from_sub_trees<
     E: Element,
@@ -529,6 +591,32 @@ fn get_config(
     StoreConfig::new(temp_dir.path(), replica, row_count - 2)
 }
 
+fn dump_tree_data_to_replica<E: Element, BaseTreeArity: Unsigned>(
+    leaves: usize,
+    len: usize,
+    config: &StoreConfig,
+    replica_file: &mut std::fs::File,
+) {
+    // Dump tree data to disk
+    let store = DiskStore::new_with_config(len, BaseTreeArity::to_usize(), config.clone())
+        .expect("failed to open store [from_store_configs_and_replica]");
+
+    // Use that data store as the replica (concat the data to the replica_path)
+    let data: Vec<E> = store
+        .read_range(std::ops::Range {
+            start: 0,
+            end: leaves,
+        })
+        .expect("failed to read store [from_store_configs_and_replica]");
+    for element in data {
+        let mut vector = vec![0u8; E::byte_len()];
+        element.copy_to_slice(vector.as_mut_slice());
+        replica_file
+            .write_all(vector.as_slice())
+            .expect("failed to write replica data [from_store_configs_and_replica]");
+    }
+}
+
 /// Actual tests
 fn test_tree_functionality<
     E: Element,
@@ -549,6 +637,36 @@ fn test_tree_functionality<
 
     for index in 0..tree.leafs() {
         let p = tree.gen_proof(index).unwrap();
+        assert!(p.validate::<A>().expect("failed to validate"));
+    }
+}
+
+fn test_levelcache_store_tree_functionality<
+    E: Element,
+    A: Algorithm<E>,
+    BaseTreeArity: Unsigned,
+    SubTreeArity: Unsigned,
+    TopTreeArity: Unsigned,
+>(
+    tree: MerkleTree<
+        E,
+        A,
+        LevelCacheStore<E, std::fs::File>,
+        BaseTreeArity,
+        SubTreeArity,
+        TopTreeArity,
+    >,
+    expected_leaves: usize,
+    rows_to_discard: Option<usize>,
+    expected_len: usize,
+    expected_root: E,
+) {
+    assert_eq!(tree.leafs(), expected_leaves);
+    assert_eq!(tree.len(), expected_len);
+    assert_eq!(tree.root(), expected_root);
+
+    for index in 0..tree.leafs() {
+        let p = tree.gen_cached_proof(index, rows_to_discard).unwrap();
         assert!(p.validate::<A>().expect("failed to validate"));
     }
 }
@@ -650,6 +768,31 @@ fn run_test_compound_compound_tree<
     test_tree_functionality::<E, A, S, BaseTreeArity, SubTreeArity, TopTreeArity>(
         compound_compound_tree,
         expected_leaves,
+        expected_len,
+        expected_root,
+    );
+}
+
+#[test]
+fn test_level_cache_store_tree_constructors() {
+    let base_tree_leaves = 4;
+    let branches = 3;
+    let expected_leaves = 4 * branches;
+    let expected_root = Item::from_slice(&[1, 29, 0, 28, 0, 4, 0, 4, 0, 12, 0, 12, 0, 4, 0, 4]);
+    let expected_len = get_merkle_tree_len_generic::<U2, U3, U0>(base_tree_leaves).unwrap();
+
+    let distinguisher = "instantiate_ctree_from_store_configs_and_replica";
+    let temp_dir = tempdir::TempDir::new(distinguisher).unwrap();
+    let rows_to_discard = StoreConfig::default_rows_to_discard(base_tree_leaves, branches);
+    let tree = instantiate_ctree_from_store_configs_and_replica::<Item, XOR128, U2, U3>(
+        base_tree_leaves,
+        &temp_dir.as_ref().to_path_buf(),
+        Some(rows_to_discard),
+    );
+    test_levelcache_store_tree_functionality(
+        tree,
+        expected_leaves,
+        Some(rows_to_discard),
         expected_len,
         expected_root,
     );
