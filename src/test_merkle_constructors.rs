@@ -62,11 +62,9 @@ fn generate_vector_of_base_trees<
     base_tree_constructor: fn(usize, Option<StoreConfig>) -> MerkleTree<E, A, S, BaseTreeArity>,
     base_tree_leaves: usize,
 ) -> Vec<MerkleTree<E, A, S, BaseTreeArity>> {
-    let mut base_trees: Vec<MerkleTree<E, A, S, BaseTreeArity, U0, U0>> = Vec::new();
-    for _ in 0..SubTreeArity::to_usize() {
-        base_trees.push(base_tree_constructor(base_tree_leaves, None));
-    }
-    base_trees
+    (0..SubTreeArity::to_usize())
+        .map(|_| base_tree_constructor(base_tree_leaves, None))
+        .collect()
 }
 
 fn generate_vector_of_base_trees_as_bytes<
@@ -79,13 +77,12 @@ fn generate_vector_of_base_trees_as_bytes<
     base_tree_constructor: fn(usize, Option<StoreConfig>) -> MerkleTree<E, A, S, BaseTreeArity>,
     base_tree_leaves: usize,
 ) -> Vec<Vec<u8>> {
-    let mut base_trees: Vec<Vec<u8>> = Vec::new();
-    for _ in 0..SubTreeArity::to_usize() {
-        let base_tree = base_tree_constructor(base_tree_leaves, None);
-        let serialized_tree = serialize_tree(base_tree);
-        base_trees.push(serialized_tree);
-    }
-    base_trees
+    (0..SubTreeArity::to_usize())
+        .map(|_| {
+            let base_tree = base_tree_constructor(base_tree_leaves, None);
+            serialize_tree(base_tree)
+        })
+        .collect()
 }
 
 /// Base tree constructors
@@ -327,17 +324,15 @@ fn instantiate_ctree_from_slices_with_config<
         .expect("can't get tree len [from_slices_with_config]");
     let row_count = get_merkle_tree_row_count(base_tree_leaves, BaseTreeArity::to_usize());
 
-    let mut vec_of_configs = Vec::new();
-    // Supply each tree with some config
-    for index in 0..vec_of_slices.len() {
-        let distinguisher = "instantiate_ctree_from_slices_with_config";
-        vec_of_configs.push(get_config(
+    let distinguisher = "instantiate_ctree_from_slices_with_config";
+    let vec_of_configs = (0..vec_of_slices.len()).map(|index| {
+        get_config(
             base_tree_leaves,
             len,
             row_count,
             format!("{}_{}", distinguisher, index.to_string()).as_str(),
-        ));
-    }
+        )
+    }).collect::<Vec<StoreConfig>>();
 
     MerkleTree::<E, A, S, BaseTreeArity, SubTreeArity>::from_slices_with_configs(
         &vec_of_slices[..],
@@ -357,34 +352,36 @@ fn instantiate_ctree_from_store_configs<
     base_tree_constructor: fn(usize, Option<StoreConfig>) -> MerkleTree<E, A, S, BaseTreeArity>,
     base_tree_leaves: usize,
 ) -> MerkleTree<E, A, S, BaseTreeArity, SubTreeArity> {
-    let mut vec_of_configs = Vec::new();
     let distinguisher = "instantiate_ctree_from_store_configs";
-    let temp_dir = tempdir::TempDir::new(distinguisher).expect("can't create temp dir");
+    let temp_dir = tempdir::TempDir::new(distinguisher).expect("can't create temp dir [from_store_configs]");
 
     // compute len for base tree as we are going to instantiate compound tree from set of base trees
     let len = get_merkle_tree_len_generic::<BaseTreeArity, U0, U0>(base_tree_leaves)
         .expect("can't get tree len [from_store_configs]");
     let row_count = get_merkle_tree_row_count(base_tree_leaves, BaseTreeArity::to_usize());
 
-    // Supply each tree with some config
-    for index in 0..SubTreeArity::to_usize() {
-        let replica = format!(
-            "{}-{}-{}-{}-{}-replica",
-            distinguisher,
-            index.to_string(),
-            base_tree_leaves,
-            len,
-            row_count,
-        );
+    let vec_of_configs = (0..SubTreeArity::to_usize())
+        .map(|index| {
+            let replica = format!(
+                "{}-{}-{}-{}-{}-replica",
+                distinguisher,
+                index.to_string(),
+                base_tree_leaves,
+                len,
+                row_count,
+            );
 
-        // we attempt to discard all intermediate layers, except bottom one (set of leaves) and top-level root of base tree
-        let config = StoreConfig::new(temp_dir.path(), replica, row_count - 2);
-
-        // we need to instantiate a tree in order to dump tree data into Disk-based storages and bind them to configs
-        base_tree_constructor(base_tree_leaves, Some(config.clone()));
-
-        vec_of_configs.push(config);
-    }
+            // we attempt to discard all intermediate layers, except bottom one (set of leaves) and top-level root of base tree
+            let config = StoreConfig::new(
+                temp_dir.path(),
+                replica,
+                StoreConfig::default_rows_to_discard(base_tree_leaves, BaseTreeArity::to_usize()),
+            );
+            // we need to instantiate a tree in order to dump tree data into Disk-based storages and bind them to configs
+            base_tree_constructor(base_tree_leaves, Some(config.clone()));
+            config
+        })
+        .collect::<Vec<StoreConfig>>();
 
     MerkleTree::from_store_configs(base_tree_leaves, &vec_of_configs)
         .expect("failed to instantiate compound tree [from_store_configs]")
@@ -404,50 +401,57 @@ fn instantiate_ctree_from_store_configs_and_replica<
     let mut replica_file = std::fs::File::create(&replica_path)
         .expect("failed to create replica file [from_store_configs_and_replica]");
 
-    let mut replica_config_offsets = Vec::new();
-    let mut vec_of_configs = Vec::new();
+    let sub_tree_arity = SubTreeArity::to_usize();
 
-    for index in 0..SubTreeArity::to_usize() {
-        // prepare replica file content
-        let config = StoreConfig::new(
-            temp_dir_path,
-            format!("{}{}", String::from("config_id"), index.to_string()),
-            rows_to_discard.expect("can't get rows_to_discard [from_store_configs_and_replica]"),
-        );
-        // instantiation of this temp tree is required for binding config to actual file on disk for subsequent dumping the data to replica
-        let tree = instantiate_try_from_iter_with_config::<E, A, DiskStore<E>, BaseTreeArity>(
-            base_tree_leaves,
-            Some(config.clone()),
-        );
-        dump_tree_data_to_replica::<E, BaseTreeArity>(
-            tree.leafs(),
-            tree.len(),
-            &config,
-            &mut replica_file,
-        );
+    let offsets = (0..sub_tree_arity)
+        .map(|index| index * E::byte_len() * base_tree_leaves)
+        .collect();
 
-        // generate valid configs and bind them each to actual data of the tree
-        let lc_config = StoreConfig::from_config(
-            &config,
-            format!("{}{}", String::from("lc_config_id"), index.to_string()),
-            Some(tree.len()),
-        );
-        let mut tree = instantiate_try_from_iter_with_config::<
-            E,
-            A,
-            LevelCacheStore<E, std::fs::File>,
-            BaseTreeArity,
-        >(base_tree_leaves, Some(lc_config.clone()));
-        tree.set_external_reader_path(&replica_path)
-            .expect("can't set external reader path [from_store_configs_and_replica]");
+    let configs = (0..sub_tree_arity)
+        .map(|index| {
+            // prepare replica file content
+            let config = StoreConfig::new(
+                temp_dir_path,
+                format!("{}{}", String::from("config_id"), index.to_string()),
+                rows_to_discard
+                    .expect("can't get rows_to_discard [from_store_configs_and_replica]"),
+            );
+            // instantiation of this temp tree is required for binding config to actual file on disk for subsequent dumping the data to replica
+            let tree = instantiate_try_from_iter_with_config::<E, A, DiskStore<E>, BaseTreeArity>(
+                base_tree_leaves,
+                Some(config.clone()),
+            );
+            dump_tree_data_to_replica::<E, BaseTreeArity>(
+                tree.leafs(),
+                tree.len(),
+                &config,
+                &mut replica_file,
+            );
 
-        replica_config_offsets.push(index * E::byte_len() * base_tree_leaves);
-        vec_of_configs.push(lc_config);
-    }
+            // generate valid configs and bind them each to actual data of the tree
+            let lc_config = StoreConfig::from_config(
+                &config,
+                format!("{}{}", String::from("lc_config_id"), index.to_string()),
+                Some(tree.len()),
+            );
+            let mut tree = instantiate_try_from_iter_with_config::<
+                E,
+                A,
+                LevelCacheStore<E, std::fs::File>,
+                BaseTreeArity,
+            >(base_tree_leaves, Some(lc_config.clone()));
+            tree.set_external_reader_path(&replica_path)
+                .expect("can't set external reader path [from_store_configs_and_replica]");
+            lc_config
+        })
+        .collect::<Vec<StoreConfig>>();
 
-    let replica_config = ReplicaConfig::new(&replica_path, replica_config_offsets);
-    MerkleTree::from_store_configs_and_replica(base_tree_leaves, &vec_of_configs, &replica_config)
-        .expect("failed to instantiate compound tree [from_store_configs_and_replica]")
+    MerkleTree::from_store_configs_and_replica(
+        base_tree_leaves,
+        &configs,
+        &ReplicaConfig::new(&replica_path, offsets),
+    )
+    .expect("failed to instantiate compound tree [from_store_configs_and_replica]")
 }
 
 /// Compound-compound tree constructors
@@ -466,13 +470,10 @@ fn instantiate_cctree_from_sub_trees<
     ) -> MerkleTree<E, A, S, BaseTreeArity, SubTreeArity>,
     base_tree_leaves: usize,
 ) -> MerkleTree<E, A, S, BaseTreeArity, SubTreeArity, TopTreeArity> {
-    let mut compound_trees: Vec<MerkleTree<E, A, S, BaseTreeArity, SubTreeArity, U0>> = Vec::new();
-    for _ in 0..TopTreeArity::to_usize() {
-        compound_trees.push(compound_tree_constructor(
-            base_tree_constructor,
-            base_tree_leaves,
-        ));
-    }
+    let compound_trees = (0..TopTreeArity::to_usize())
+        .map(|_| compound_tree_constructor(base_tree_constructor, base_tree_leaves))
+        .collect();
+
     MerkleTree::from_sub_trees(compound_trees)
         .expect("failed to instantiate compound-compound tree from compound trees [from_sub_trees]")
 }
@@ -492,12 +493,15 @@ fn instantiate_cctree_from_sub_trees_as_trees<
     ) -> MerkleTree<E, A, S, BaseTreeArity, SubTreeArity>,
     base_tree_leaves: usize,
 ) -> MerkleTree<E, A, S, BaseTreeArity, SubTreeArity, TopTreeArity> {
-    let mut base_trees: Vec<MerkleTree<E, A, S, BaseTreeArity, U0, U0>> = Vec::new();
-    for _ in 0..TopTreeArity::to_usize() {
-        for _ in 0..SubTreeArity::to_usize() {
-            base_trees.push(base_tree_constructor(base_tree_leaves, None));
-        }
-    }
+    let base_trees = (0..TopTreeArity::to_usize())
+        .map(|_| {
+            (0..SubTreeArity::to_usize())
+                .map(|_| base_tree_constructor(base_tree_leaves, None))
+                .collect::<Vec<MerkleTree<E, A, S, BaseTreeArity, U0, U0>>>()
+        })
+        .flatten()
+        .collect();
+
     MerkleTree::from_sub_trees_as_trees(base_trees)
         .expect("failed to instantiate compound-compound tree from set of base trees [from_sub_trees_as_trees]")
 }
@@ -517,39 +521,41 @@ fn instantiate_cctree_from_sub_tree_store_configs<
     ) -> MerkleTree<E, A, S, BaseTreeArity, SubTreeArity>,
     base_tree_leaves: usize,
 ) -> MerkleTree<E, A, S, BaseTreeArity, SubTreeArity, TopTreeArity> {
-    let mut vec_of_configs = Vec::new();
     let distinguisher = "instantiate_ctree_from_store_configs";
-    let temp_dir = tempdir::TempDir::new(distinguisher).expect("can't create temp dir");
+    let temp_dir = tempdir::TempDir::new(distinguisher)
+        .expect("can't create temp dir [from_sub_tree_store_configs]");
 
     // compute len for base tree as we are going to instantiate compound tree from set of base trees
     let len = get_merkle_tree_len_generic::<BaseTreeArity, U0, U0>(base_tree_leaves)
-        .expect("can't get tree len [from_store_configs]");
+        .expect("can't get tree len [from_sub_tree_store_configs]");
     let row_count = get_merkle_tree_row_count(base_tree_leaves, BaseTreeArity::to_usize());
 
-    // Supply each tree with some config
-    for i in 0..TopTreeArity::to_usize() {
-        for j in 0..SubTreeArity::to_usize() {
-            let replica = format!(
-                "{}-{}-{}-{}-{}-{}-replica",
-                distinguisher,
-                i.to_string(),
-                j.to_string(),
-                base_tree_leaves,
-                len,
-                row_count,
-            );
+    let configs = (0..TopTreeArity::to_usize())
+        .map(|j| {
+            (0..SubTreeArity::to_usize())
+                .map(|i| {
+                    let replica = format!(
+                        "{}-{}-{}-{}-{}-{}-replica",
+                        distinguisher,
+                        i.to_string(),
+                        j.to_string(),
+                        base_tree_leaves,
+                        len,
+                        row_count,
+                    );
 
-            // we attempt to discard all intermediate layers, except bottom one (set of leaves) and top-level root of base tree
-            let config = StoreConfig::new(temp_dir.path(), replica, row_count - 2);
+                    // we attempt to discard all intermediate layers, except bottom one (set of leaves) and top-level root of base tree
+                    let config = StoreConfig::new(temp_dir.path(), replica, row_count - 2);
+                    // we need to instantiate a tree in order to dump tree data into Disk-based storages and bind them to configs
+                    base_tree_constructor(base_tree_leaves, Some(config.clone()));
+                    config
+                })
+                .collect::<Vec<StoreConfig>>()
+        })
+        .flatten()
+        .collect::<Vec<StoreConfig>>();
 
-            // we need to instantiate a tree in order to dump tree data into Disk-based storages and bind them to configs
-            base_tree_constructor(base_tree_leaves, Some(config.clone()));
-
-            vec_of_configs.push(config);
-        }
-    }
-
-    MerkleTree::from_sub_tree_store_configs(base_tree_leaves, &vec_of_configs)
+    MerkleTree::from_sub_tree_store_configs(base_tree_leaves, &configs)
         .expect("failed to instantiate compound-compound tree [from_sub_tree_store_configs]")
 }
 
@@ -568,67 +574,75 @@ fn instantiate_cctree_from_sub_tree_store_configs_and_replica<
     let replica_path = StoreConfig::data_path(temp_dir_path, "replica_path");
     let mut replica_file = std::fs::File::create(&replica_path)
         .expect("failed to create replica file [from_sub_tree_store_configs_and_replica]");
-    let mut replica_config_offsets = Vec::new();
-    let mut vec_of_configs = Vec::new();
 
-    let mut replica_config_index = 0;
-    for i in 0..TopTreeArity::to_usize() {
-        for j in 0..SubTreeArity::to_usize() {
-            // prepare replica file content
-            let config = StoreConfig::new(
-                temp_dir_path,
-                format!(
-                    "{}{}{}",
-                    String::from("config_id"),
-                    i.to_string(),
-                    j.to_string()
-                ),
-                rows_to_discard
-                    .expect("can't get rows_to_discard [from_sub_tree_store_configs_and_replica]"),
-            );
-            // instantiation of this temp tree is required for binding config to actual file on disk for subsequent dumping the data to replica
-            let tree = instantiate_try_from_iter_with_config::<E, A, DiskStore<E>, BaseTreeArity>(
-                base_tree_leaves,
-                Some(config.clone()),
-            );
-            dump_tree_data_to_replica::<E, BaseTreeArity>(
-                tree.leafs(),
-                tree.len(),
-                &config,
-                &mut replica_file,
-            );
+    let sub_tree_arity = SubTreeArity::to_usize();
+    let top_tree_arity = TopTreeArity::to_usize();
 
-            // generate valid configs and bind them each to actual data of the tree
-            let lc_config = StoreConfig::from_config(
-                &config,
-                format!(
-                    "{}{}{}",
-                    String::from("lc_config_id"),
-                    i.to_string(),
-                    j.to_string()
-                ),
-                Some(tree.len()),
-            );
-            let mut tree = instantiate_try_from_iter_with_config::<
-                E,
-                A,
-                LevelCacheStore<E, std::fs::File>,
-                BaseTreeArity,
-            >(base_tree_leaves, Some(lc_config.clone()));
-            tree.set_external_reader_path(&replica_path)
-                .expect("can't set external reader path [from_sub_tree_store_configs_and_replica]");
+    let offsets = (0..sub_tree_arity * top_tree_arity)
+        .map(|index| index * E::byte_len() * base_tree_leaves)
+        .collect();
 
-            replica_config_offsets.push(replica_config_index * E::byte_len() * base_tree_leaves);
-            replica_config_index += 1;
-            vec_of_configs.push(lc_config);
-        }
-    }
+    let configs = (0..TopTreeArity::to_usize())
+        .map(|j| {
+            (0..SubTreeArity::to_usize())
+                .map(|i| {
+                    // prepare replica file content
+                    let config = StoreConfig::new(
+                        temp_dir_path,
+                        format!(
+                            "{}{}{}",
+                            String::from("config_id"),
+                            i.to_string(),
+                            j.to_string()
+                        ),
+                        rows_to_discard.expect(
+                            "can't get rows_to_discard [from_sub_tree_store_configs_and_replica]",
+                        ),
+                    );
+                    // instantiation of this temp tree is required for binding config to actual file on disk for subsequent dumping the data to replica
+                    let tree =
+                        instantiate_try_from_iter_with_config::<E, A, DiskStore<E>, BaseTreeArity>(
+                            base_tree_leaves,
+                            Some(config.clone()),
+                        );
+                    dump_tree_data_to_replica::<E, BaseTreeArity>(
+                        tree.leafs(),
+                        tree.len(),
+                        &config,
+                        &mut replica_file,
+                    );
 
-    let replica_config = ReplicaConfig::new(&replica_path, replica_config_offsets);
+                    // generate valid configs and bind them each to actual data of the tree
+                    let lc_config = StoreConfig::from_config(
+                        &config,
+                        format!(
+                            "{}{}{}",
+                            String::from("lc_config_id"),
+                            i.to_string(),
+                            j.to_string()
+                        ),
+                        Some(tree.len()),
+                    );
+                    let mut tree = instantiate_try_from_iter_with_config::<
+                        E,
+                        A,
+                        LevelCacheStore<E, std::fs::File>,
+                        BaseTreeArity,
+                    >(base_tree_leaves, Some(lc_config.clone()));
+                    tree.set_external_reader_path(&replica_path).expect(
+                        "can't set external reader path [from_sub_tree_store_configs_and_replica]",
+                    );
+                    lc_config
+                })
+                .collect::<Vec<StoreConfig>>()
+        })
+        .flatten()
+        .collect::<Vec<StoreConfig>>();
+
     MerkleTree::from_sub_tree_store_configs_and_replica(
         base_tree_leaves,
-        &vec_of_configs,
-        &replica_config,
+        &configs,
+        &ReplicaConfig::new(&replica_path, offsets),
     )
     .expect(
         "failed to instantiate compound-compound tree [from_sub_tree_store_configs_and_replica]",
