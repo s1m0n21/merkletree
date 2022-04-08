@@ -325,14 +325,16 @@ fn instantiate_ctree_from_slices_with_config<
     let row_count = get_merkle_tree_row_count(base_tree_leaves, BaseTreeArity::to_usize());
 
     let distinguisher = "instantiate_ctree_from_slices_with_config";
-    let vec_of_configs = (0..vec_of_slices.len()).map(|index| {
-        get_config(
-            base_tree_leaves,
-            len,
-            row_count,
-            format!("{}_{}", distinguisher, index.to_string()).as_str(),
-        )
-    }).collect::<Vec<StoreConfig>>();
+    let vec_of_configs = (0..vec_of_slices.len())
+        .map(|index| {
+            get_config(
+                base_tree_leaves,
+                len,
+                row_count,
+                format!("{}_{}", distinguisher, index.to_string()).as_str(),
+            )
+        })
+        .collect::<Vec<StoreConfig>>();
 
     MerkleTree::<E, A, S, BaseTreeArity, SubTreeArity>::from_slices_with_configs(
         &vec_of_slices[..],
@@ -353,7 +355,8 @@ fn instantiate_ctree_from_store_configs<
     base_tree_leaves: usize,
 ) -> MerkleTree<E, A, S, BaseTreeArity, SubTreeArity> {
     let distinguisher = "instantiate_ctree_from_store_configs";
-    let temp_dir = tempdir::TempDir::new(distinguisher).expect("can't create temp dir [from_store_configs]");
+    let temp_dir =
+        tempdir::TempDir::new(distinguisher).expect("can't create temp dir [from_store_configs]");
 
     // compute len for base tree as we are going to instantiate compound tree from set of base trees
     let len = get_merkle_tree_len_generic::<BaseTreeArity, U0, U0>(base_tree_leaves)

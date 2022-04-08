@@ -668,6 +668,7 @@ impl<
         for _ in 0..top_tree_arity {
             grouped_trees.push(trees.split_off(trees.len() - sub_tree_arity));
         }
+        grouped_trees.reverse();
 
         let mut sub_trees: Vec<MerkleTree<E, A, S, BaseTreeArity, SubTreeArity>> =
             Vec::with_capacity(top_tree_arity);
