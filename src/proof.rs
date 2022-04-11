@@ -1,5 +1,7 @@
 use crate::hash::{Algorithm, Hashable};
-use crate::merkle::{get_merkle_proof_lemma_len, Element};
+use crate::merkle::get_merkle_proof_lemma_len;
+#[cfg(test)]
+use crate::merkle::Element;
 
 use anyhow::Result;
 use std::marker::PhantomData;
