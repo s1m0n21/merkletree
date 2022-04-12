@@ -1,7 +1,7 @@
 use std::fs::{File, OpenOptions};
 use std::marker::PhantomData;
 use std::ops;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 use anyhow::Result;
 use memmap::MmapMut;
@@ -12,11 +12,9 @@ use crate::store::{Store, StoreConfig};
 /// Store that saves the data on disk, and accesses it using memmap.
 #[derive(Debug)]
 pub struct MmapStore<E: Element> {
-    path: PathBuf,
     map: Option<MmapMut>,
     file: File,
     len: usize,
-    store_size: usize,
     _e: PhantomData<E>,
 }
 
@@ -51,11 +49,9 @@ impl<E: Element> Store<E> for MmapStore<E> {
         let map = unsafe { MmapMut::map_mut(&file)? };
 
         Ok(MmapStore {
-            path: data_path,
             map: Some(map),
             file,
             len: 0,
-            store_size,
             _e: Default::default(),
         })
     }
@@ -66,15 +62,13 @@ impl<E: Element> Store<E> for MmapStore<E> {
 
         let file = tempfile::NamedTempFile::new()?;
         file.as_file().set_len(store_size as u64)?;
-        let (file, path) = file.into_parts();
+        let (file, _path) = file.into_parts();
         let map = unsafe { MmapMut::map_mut(&file)? };
 
         Ok(MmapStore {
-            path: path.keep()?,
             map: Some(map),
             file,
             len: 0,
-            store_size,
             _e: Default::default(),
         })
     }
@@ -98,11 +92,9 @@ impl<E: Element> Store<E> for MmapStore<E> {
         let map = unsafe { MmapMut::map_mut(&file)? };
 
         Ok(MmapStore {
-            path: data_path,
             map: Some(map),
             file,
             len: size,
-            store_size,
             _e: Default::default(),
         })
     }

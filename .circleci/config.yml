@@ -115,8 +115,8 @@ jobs:
       - *restore-workspace
       - *restore-cache
       - run:
-          name: Run cargo build --benches
-          command: cargo build --benches --all-features --all --release
+          name: Run all benchmarks
+          command: cargo bench --all-targets
 
   doc:
     executor: default
