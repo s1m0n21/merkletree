@@ -803,7 +803,6 @@ fn test_compound_octree_from_slices() {
             MerkleTree::from_trees(vec![mt1, mt2, mt3, mt4, mt5])
                 .expect("Failed to build compound tree");
 
-        println!("{:?}", tree);
         assert_eq!(tree.len(), expected_tree_len);
         assert_eq!(tree.leafs(), expected_tree_leaves_number);
         assert_eq!(tree.row_count(), expected_tree_row_count);

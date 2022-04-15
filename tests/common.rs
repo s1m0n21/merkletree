@@ -1,0 +1,275 @@
+use std::fmt;
+use std::hash::Hasher;
+
+use crypto::digest::Digest;
+use crypto::sha2::Sha256;
+use typenum::Unsigned;
+
+use merkletree::hash::{Algorithm, Hashable};
+use merkletree::merkle::{Element, MerkleTree};
+use merkletree::store::{Store, StoreConfig};
+
+// TODO finish this explanation (what is and is not covered by these integration tests)
+
+/// This is the common utilities that we use for integration tests
+///
+/// In order to check that particular merkle tree will work as expected we need following stuff:
+///
+/// - actual logic of test, that will evaluate if implemented functionality works as expected;
+/// - implementation of Element, that we will use as elements of the tree while testing;
+/// - implementations of Hasher and Algorithm, that we will use for computing leafs, nodes, root
+/// and inclusion proofs while testing;
+/// - generator of some arbitrary dataset, that can be used as a source of data for building a tree over it;
+///
+/// Implementation of MerkleTree abstraction is rather dense. Trees can be instantiated via 23 different
+/// constructors (each constructor is part of public API), while tree can have various type (base, compound,
+/// compound-compound), while each type can have arbitrary arity; additionally tree can be backed by 4 different
+/// storages, each with own specifics.
+///
+/// Having that in mind, and considering that writing tests for all possible combination of parameters can lead to
+/// huge amount of code that we need to support, we provide integration tests that cover following cases:
+///
+/// - testing instantiation of tree via all constructors that are part of public API;
+/// - ensuring that each tree has expected amount of leaves, expected length and expected root;
+/// - ensuring that inclusion proof can be successfully created and verified for each tree leaf;
+///
+/// What is not covered:
+///
+
+/// Implementation of Element abstraction that we use in our integration tests
+#[derive(PartialEq, Eq, PartialOrd, Ord, Copy, Clone, Debug, Default)]
+pub struct TestItem([u8; SIZE]);
+pub const SIZE: usize = 0x10;
+
+// We introduce this wrapper-type and implement Element actually for it
+// just to avoid writing <item>.clone() all the time in tests
+pub type TestItemType = TestItem;
+
+impl AsRef<[u8]> for TestItem {
+    fn as_ref(&self) -> &[u8] {
+        self.0.as_slice()
+    }
+}
+
+impl Element for TestItemType {
+    fn byte_len() -> usize {
+        SIZE
+    }
+    fn from_slice(bytes: &[u8]) -> Self {
+        assert_eq!(bytes.len(), Self::byte_len());
+        let mut el = [0u8; SIZE];
+        el[..].copy_from_slice(bytes);
+        TestItem(el)
+    }
+    fn copy_to_slice(&self, bytes: &mut [u8]) {
+        bytes.copy_from_slice(self.0.as_slice());
+    }
+}
+
+/// XOR128 implementation of Algorithm abstraction that we use in our integration tests
+pub struct TestXOR128 {
+    data: TestItem,
+    i: usize,
+}
+
+impl TestXOR128 {
+    pub fn new() -> TestXOR128 {
+        TestXOR128 {
+            data: TestItem([0u8; SIZE]),
+            i: 0,
+        }
+    }
+}
+
+impl Hasher for TestXOR128 {
+    fn finish(&self) -> u64 {
+        // FIXME: contract is broken by design
+        unimplemented!(
+            "Hasher's contract (finish function is not used) is deliberately broken by design"
+        )
+    }
+    fn write(&mut self, bytes: &[u8]) {
+        for x in bytes {
+            self.data.0[self.i & 15] ^= *x;
+            self.i += 1;
+        }
+    }
+}
+
+impl Default for TestXOR128 {
+    fn default() -> Self {
+        TestXOR128::new()
+    }
+}
+
+impl Algorithm<TestItem> for TestXOR128 {
+    fn hash(&mut self) -> TestItem {
+        self.data.clone()
+    }
+}
+
+/// SHA256 implementations of Algorithm abstraction that we use in our integration tests
+pub struct TestSha256Hasher {
+    engine: Sha256,
+}
+
+impl TestSha256Hasher {
+    pub fn new() -> TestSha256Hasher {
+        TestSha256Hasher {
+            engine: Sha256::new(),
+        }
+    }
+}
+
+impl fmt::Debug for TestSha256Hasher {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f.write_str("Sha256Hasher")
+    }
+}
+
+impl Default for TestSha256Hasher {
+    fn default() -> Self {
+        TestSha256Hasher::new()
+    }
+}
+
+impl Hasher for TestSha256Hasher {
+    // FIXME: contract is broken by design
+    fn finish(&self) -> u64 {
+        unimplemented!(
+            "Hasher's contract (finish function is not used) is deliberately broken by design"
+        )
+    }
+
+    fn write(&mut self, bytes: &[u8]) {
+        self.engine.input(bytes)
+    }
+}
+
+impl Algorithm<TestItem> for TestSha256Hasher {
+    fn hash(&mut self) -> TestItem {
+        let mut result = TestItem::default();
+        let item_size = result.0.len();
+        let mut hash_output = vec![0u8; self.engine.output_bytes()];
+        self.engine.result(&mut hash_output);
+        self.engine.reset();
+        if item_size < hash_output.len() {
+            result
+                .0
+                .copy_from_slice(&hash_output.as_slice()[0..item_size]);
+        } else {
+            result.0.copy_from_slice(&hash_output.as_slice())
+        }
+        result
+    }
+}
+
+/// Dataset generators
+///
+/// We need to provide 3 different datasets:
+/// - <I: IntoIterator<Item = E>>
+/// - <O: Hashable<A>, I: IntoIterator<Item = O>>
+/// - datasets based on raw serialization to byte-slice;
+///
+/// because various MerkleTree constructors have specific requirements
+
+// generate dataset of iterable elements
+pub fn generate_vector_of_elements<E: Element>(leaves: usize) -> Vec<E> {
+    let result = (0..leaves).map(|index| {
+        // we are ok with usize -> u8 conversion problems, since we need just predictable dataset
+        let vector: Vec<u8> = (0..E::byte_len()).map(|x| (index + x) as u8).collect();
+        E::from_slice(vector.as_slice())
+    });
+    result.collect()
+}
+
+// generate dataset of iterable and hashable elements
+pub fn generate_vector_of_usizes(leaves: usize) -> Vec<usize> {
+    (0..leaves).map(|index| index * 93).collect()
+}
+
+// generate dataset of hashable (usize) elements and serialize it at once
+pub fn generate_byte_slice_tree<E: Element, A: Algorithm<E>>(leaves: usize) -> Vec<u8> {
+    let mut a = A::default();
+    let mut a2 = A::default();
+
+    let dataset: Vec<u8> = generate_vector_of_usizes(leaves)
+        .iter()
+        .map(|x| {
+            a.reset();
+            x.hash(&mut a);
+            a.hash()
+        })
+        .take(leaves)
+        .map(|item| {
+            a2.reset();
+            a2.leaf(item).as_ref().to_vec()
+        })
+        .flatten()
+        .collect();
+
+    dataset
+}
+
+/// Actual tests
+pub fn test_disk_mmap_vec_tree_functionality<
+    E: Element,
+    A: Algorithm<E>,
+    S: Store<E>,
+    BaseTreeArity: Unsigned,
+    SubTreeArity: Unsigned,
+    TopTreeArity: Unsigned,
+>(
+    tree: MerkleTree<E, A, S, BaseTreeArity, SubTreeArity, TopTreeArity>,
+    expected_leaves: usize,
+    expected_len: usize,
+    expected_root: E,
+) {
+    assert_eq!(tree.leafs(), expected_leaves);
+    assert_eq!(tree.len(), expected_len);
+    assert_eq!(tree.root(), expected_root);
+
+    for index in 0..tree.leafs() {
+        let p = tree.gen_proof(index).unwrap();
+        assert!(p.validate::<A>().expect("failed to validate"));
+    }
+}
+
+/// Utilities
+pub fn serialize_tree<E: Element, A: Algorithm<E>, S: Store<E>, U: Unsigned>(
+    tree: MerkleTree<E, A, S, U>,
+) -> Vec<u8> {
+    let data = tree.data().expect("can't get tree's data [serialize_tree]");
+    let data: Vec<E> = data
+        .read_range(0..data.len())
+        .expect("can't read actual data [serialize_tree]");
+    let mut serialized_tree = vec![0u8; E::byte_len() * data.len()];
+    let mut start = 0;
+    let mut end = E::byte_len();
+    for element in data {
+        element.copy_to_slice(&mut serialized_tree[start..end]);
+        start += E::byte_len();
+        end += E::byte_len();
+    }
+    serialized_tree
+}
+
+pub fn instantiate_new<E: Element, A: Algorithm<E>, S: Store<E>, U: Unsigned>(
+    leaves: usize,
+    _config: Option<StoreConfig>,
+) -> MerkleTree<E, A, S, U> {
+    let dataset = generate_vector_of_elements::<E>(leaves);
+    MerkleTree::new(dataset).expect("failed to instantiate tree [new]")
+}
+
+pub fn instantiate_new_with_config<E: Element, A: Algorithm<E>, S: Store<E>, U: Unsigned>(
+    leaves: usize,
+    config: Option<StoreConfig>,
+) -> MerkleTree<E, A, S, U> {
+    let dataset = generate_vector_of_elements::<E>(leaves);
+    MerkleTree::new_with_config(
+        dataset,
+        config.expect("can't get tree's config [new_with_config]"),
+    )
+    .expect("failed to instantiate tree [new_with_config]")
+}

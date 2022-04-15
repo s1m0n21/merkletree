@@ -445,9 +445,8 @@ impl<
             is_merkle_tree_size_valid(leafs, branches),
             "MerkleTree size is invalid given the arity"
         );
-
         let store = S::new_from_slice(tree_len, &data).context("failed to create data store")?;
-        let root = store.read_at(data.len() - 1)?;
+        let root = store.read_at(store.len() - 1)?;
 
         Ok(MerkleTree {
             data: Data::BaseTree(store),
@@ -493,7 +492,7 @@ impl<
 
         let store = S::new_from_slice_with_config(tree_len, branches, &data, config)
             .context("failed to create data store")?;
-        let root = store.read_at(data.len() - 1)?;
+        let root = store.read_at(store.len() - 1)?;
 
         Ok(MerkleTree {
             data: Data::BaseTree(store),
@@ -1808,6 +1807,32 @@ impl Element for [u8; 32] {
     fn copy_to_slice(&self, bytes: &mut [u8]) {
         bytes.copy_from_slice(self);
     }
+}
+
+/// This function calculates length of the generic tree by taking values from arity parameters.
+/// E.g. it can be used for base / compound / compound-compound trees.
+pub fn get_merkle_tree_len_generic<
+    BaseTreeArity: Unsigned,
+    SubTreeArity: Unsigned,
+    TopTreeArity: Unsigned,
+>(
+    leaves: usize,
+) -> Result<usize> {
+    let top_tree_arity = TopTreeArity::to_usize();
+    let sub_tree_arity = SubTreeArity::to_usize();
+    let base_tree_arity = BaseTreeArity::to_usize();
+
+    let base_tree_len = get_merkle_tree_len(leaves, base_tree_arity)?;
+
+    if top_tree_arity > 0 {
+        return Ok(1 + top_tree_arity + sub_tree_arity * top_tree_arity * base_tree_len);
+    }
+
+    if sub_tree_arity > 0 {
+        return Ok(1 + sub_tree_arity * base_tree_len);
+    }
+
+    Ok(base_tree_len)
 }
 
 // Tree length calculation given the number of leafs in the tree and the branches.
