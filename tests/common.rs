@@ -1,5 +1,6 @@
 use std::fmt;
 use std::hash::Hasher;
+use std::io::Write;
 
 use crypto::digest::Digest;
 use crypto::sha2::Sha256;
@@ -7,7 +8,7 @@ use typenum::Unsigned;
 
 use merkletree::hash::{Algorithm, Hashable};
 use merkletree::merkle::{Element, MerkleTree};
-use merkletree::store::{Store, StoreConfig};
+use merkletree::store::{DiskStore, LevelCacheStore, Store, StoreConfig};
 
 // TODO finish this explanation (what is and is not covered by these integration tests)
 
@@ -235,6 +236,36 @@ pub fn test_disk_mmap_vec_tree_functionality<
     }
 }
 
+pub fn test_levelcache_tree_functionality<
+    E: Element,
+    A: Algorithm<E>,
+    BaseTreeArity: Unsigned,
+    SubTreeArity: Unsigned,
+    TopTreeArity: Unsigned,
+>(
+    tree: MerkleTree<
+        E,
+        A,
+        LevelCacheStore<E, std::fs::File>,
+        BaseTreeArity,
+        SubTreeArity,
+        TopTreeArity,
+    >,
+    rows_to_discard: Option<usize>,
+    expected_leaves: usize,
+    expected_len: usize,
+    expected_root: E,
+) {
+    assert_eq!(tree.leafs(), expected_leaves);
+    assert_eq!(tree.len(), expected_len);
+    assert_eq!(tree.root(), expected_root);
+
+    for index in 0..tree.leafs() {
+        let p = tree.gen_cached_proof(index, rows_to_discard).unwrap();
+        assert!(p.validate::<A>().expect("failed to validate"));
+    }
+}
+
 /// Utilities
 pub fn serialize_tree<E: Element, A: Algorithm<E>, S: Store<E>, U: Unsigned>(
     tree: MerkleTree<E, A, S, U>,
@@ -272,4 +303,30 @@ pub fn instantiate_new_with_config<E: Element, A: Algorithm<E>, S: Store<E>, U: 
         config.expect("can't get tree's config [new_with_config]"),
     )
     .expect("failed to instantiate tree [new_with_config]")
+}
+
+pub fn dump_tree_data_to_replica<E: Element, BaseTreeArity: Unsigned>(
+    leaves: usize,
+    len: usize,
+    config: &StoreConfig,
+    replica_file: &mut std::fs::File,
+) {
+    // Dump tree data to disk
+    let store = DiskStore::new_with_config(len, BaseTreeArity::to_usize(), config.clone())
+        .expect("failed to open store [dump_tree_data_to_replica]");
+
+    // Use that data store as the replica (concat the data to the replica_path)
+    let data: Vec<E> = store
+        .read_range(std::ops::Range {
+            start: 0,
+            end: leaves,
+        })
+        .expect("failed to read store [dump_tree_data_to_replica]");
+    for element in data {
+        let mut vector = vec![0u8; E::byte_len()];
+        element.copy_to_slice(vector.as_mut_slice());
+        replica_file
+            .write_all(vector.as_slice())
+            .expect("failed to write replica data [dump_tree_data_to_replica]");
+    }
 }
