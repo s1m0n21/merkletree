@@ -1641,3 +1641,45 @@ fn test_parallel_iter_disk_2() {
         }
     }
 }
+
+#[test]
+fn reproducible_example() {
+    fn success() {
+        println!("success starts");
+        let base_tree_leaves = 4;
+
+        let mut compound_trees = vec![];
+        for _ in 0..4 {
+            compound_trees.push(get_vec_tree_from_slice::<Item, XOR128, U2>(base_tree_leaves));
+        }
+
+        for _ in 0..4 {
+            compound_trees.push(get_vec_tree_from_slice::<Item, XOR128, U2>(base_tree_leaves));
+        }
+        MerkleTree::<Item, XOR128, VecStore<Item>, U2, U4, U2>::from_sub_trees_as_trees(compound_trees).unwrap();
+        println!("success ends");
+    }
+
+    fn fail() {
+        println!("fail starts");
+        let base_tree_leaves = 4;
+        let mut compound_trees = vec![];
+        for _ in 0..5 {
+            compound_trees.push(get_vec_tree_from_slice::<Item, XOR128, U2>(base_tree_leaves));
+        }
+
+        for _ in 0..5 {
+            compound_trees.push(get_vec_tree_from_slice::<Item, XOR128, U2>(base_tree_leaves));
+        }
+
+        for _ in 0..5 {
+            compound_trees.push(get_vec_tree_from_slice::<Item, XOR128, U2>(base_tree_leaves));
+        }
+
+        MerkleTree::<Item, XOR128, VecStore<Item>, U2, U5, U3>::from_sub_trees_as_trees(compound_trees).unwrap();
+        println!("fail ends");
+    }
+
+    success();
+    fail();
+}
