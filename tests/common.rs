@@ -36,6 +36,10 @@ use merkletree::store::{DiskStore, LevelCacheStore, Store, StoreConfig};
 ///
 /// What is not covered:
 ///
+/// - instantiation of DiskStore and MmapStore compound trees;
+/// - instantiation of LevelCacheStore base tree using 'from_tree_slice_with_config' constructor
+/// - instantiation of LevelCacheStore compound trees using "regular" compound constructors ('from_slices_with_configs', 'from_store_configs');
+/// -
 
 /// Implementation of Element abstraction that we use in our integration tests
 #[derive(PartialEq, Eq, PartialOrd, Ord, Copy, Clone, Debug, Default)]
@@ -329,4 +333,35 @@ pub fn dump_tree_data_to_replica<E: Element, BaseTreeArity: Unsigned>(
             .write_all(vector.as_slice())
             .expect("failed to write replica data [dump_tree_data_to_replica]");
     }
+}
+
+pub fn get_vector_of_base_trees_as_slices<
+    E: Element,
+    A: Algorithm<E>,
+    S: Store<E>,
+    BaseTreeArity: Unsigned,
+    SubTreeArity: Unsigned,
+>(
+    base_tree_leaves: usize,
+) -> Vec<Vec<u8>> {
+    (0..SubTreeArity::to_usize())
+        .map(|_| {
+            let base_tree = instantiate_new::<E, A, S, BaseTreeArity>(base_tree_leaves, None);
+            serialize_tree(base_tree)
+        })
+        .collect()
+}
+
+pub fn get_vector_of_base_trees<
+    E: Element,
+    A: Algorithm<E>,
+    S: Store<E>,
+    BaseTreeArity: Unsigned,
+    SubTreeArity: Unsigned,
+>(
+    base_tree_leaves: usize,
+) -> Vec<MerkleTree<E, A, S, BaseTreeArity>> {
+    (0..SubTreeArity::to_usize())
+        .map(|_| instantiate_new(base_tree_leaves, None))
+        .collect()
 }

@@ -4,18 +4,67 @@ use rayon::iter::IntoParallelIterator;
 
 use crate::common::{
     dump_tree_data_to_replica, generate_byte_slice_tree, generate_vector_of_elements,
-    generate_vector_of_usizes, serialize_tree, test_levelcache_tree_functionality, TestItem,
-    TestItemType, TestSha256Hasher, TestXOR128,
+    generate_vector_of_usizes, get_vector_of_base_trees, instantiate_new_with_config,
+    serialize_tree, test_levelcache_tree_functionality, TestItem, TestItemType, TestSha256Hasher,
+    TestXOR128,
 };
 use merkletree::hash::Algorithm;
 use merkletree::merkle::{
     get_merkle_tree_len_generic, Element, FromIndexedParallelIterator, MerkleTree,
 };
-use merkletree::store::{DiskStore, LevelCacheStore, StoreConfig, VecStore};
+use merkletree::store::{DiskStore, LevelCacheStore, ReplicaConfig, StoreConfig, VecStore};
 use std::path::PathBuf;
 use typenum::{Unsigned, U0, U8};
 
-/// Constructors
+/// LevelCacheStore constructors of base trees
+fn lc_instantiate_new_with_config<E: Element, A: Algorithm<E>, BaseTreeArity: Unsigned>(
+    leaves: usize,
+    temp_dir_path: &PathBuf,
+    rows_to_discard: usize,
+) -> MerkleTree<E, A, LevelCacheStore<E, std::fs::File>, BaseTreeArity> {
+    let dataset = generate_vector_of_elements::<E>(leaves);
+
+    let replica_path = StoreConfig::data_path(temp_dir_path, "replica_path");
+    let mut replica_file = std::fs::File::create(&replica_path)
+        .expect("failed to create replica file [lc_instantiate_new_with_config]");
+
+    // prepare replica file content
+    let config = StoreConfig::new(
+        temp_dir_path,
+        "lc_instantiate_new_with_config",
+        rows_to_discard,
+    );
+
+    // instantiation of this temp tree is required for binding config to actual file on disk for subsequent dumping the data to replica
+    let tree = MerkleTree::<E, A, DiskStore<E>, BaseTreeArity>::new_with_config(
+        dataset.clone(),
+        config.clone(),
+    )
+    .expect("failed to instantiate tree [lc_instantiate_new_with_config]");
+
+    dump_tree_data_to_replica::<E, BaseTreeArity>(
+        tree.leafs(),
+        tree.len(),
+        &config,
+        &mut replica_file,
+    );
+
+    // generate LC tree from dumped data
+    let lc_config = StoreConfig::from_config(
+        &config,
+        format!("{}-{}", "lc_instantiate_new_with_config", "lc"),
+        Some(tree.len()),
+    );
+    let mut tree =
+        MerkleTree::<E, A, LevelCacheStore<E, std::fs::File>, BaseTreeArity>::new_with_config(
+            dataset, lc_config,
+        )
+        .expect("failed to instantiate LC tree [lc_instantiate_new_with_config]");
+    tree.set_external_reader_path(&replica_path)
+        .expect("can't set external reader path [lc_instantiate_new_with_config]");
+    tree
+}
+
 fn lc_instantiate_try_from_iter_with_config<
     E: Element,
     A: Algorithm<E>,
@@ -295,7 +344,19 @@ fn test_base_levelcache_trees_iterable() {
         let len = get_merkle_tree_len_generic::<OctTree, U0, U0>(base_tree_leaves).unwrap();
         let rows_to_discard = 0;
 
-        let distinguisher = "instantiate_ctree_from_store_configs_and_replica";
+        let distinguisher = "lc_instantiate_new_with_config";
+        let temp_dir = tempdir::TempDir::new(distinguisher).unwrap();
+        run_test_base_lc_tree::<E, A, OctTree>(
+            lc_instantiate_new_with_config,
+            base_tree_leaves,
+            &temp_dir.as_ref().to_path_buf(),
+            rows_to_discard,
+            expected_total_leaves,
+            len,
+            root,
+        );
+
+        let distinguisher = "lc_instantiate_try_from_iter_with_config";
         let temp_dir = tempdir::TempDir::new(distinguisher).unwrap();
         run_test_base_lc_tree::<E, A, OctTree>(
             lc_instantiate_try_from_iter_with_config,
@@ -383,6 +444,114 @@ fn test_base_levelcache_trees_iterable_hashable_and_serialization() {
 
     let root_sha256 = TestItemType::from_slice(&[
         98, 103, 202, 101, 121, 179, 6, 237, 133, 39, 253, 169, 173, 63, 89, 188,
+    ]);
+    run_tests::<TestItemType, TestSha256Hasher>(root_sha256);
+}
+
+/// LevelCacheStore compound trees can be instantiated via specific 'from_store_configs_and_replica' constructor
+fn lc_instantiate_ctree_from_store_configs_and_replica<
+    E: Element,
+    A: Algorithm<E>,
+    BaseTreeArity: Unsigned,
+    SubTreeArity: Unsigned,
+>(
+    base_tree_leaves: usize,
+    temp_dir_path: &PathBuf,
+    rows_to_discard: Option<usize>,
+) -> MerkleTree<E, A, LevelCacheStore<E, std::fs::File>, BaseTreeArity, SubTreeArity> {
+    let replica_path = StoreConfig::data_path(temp_dir_path, "replica_path");
+    let mut replica_file = std::fs::File::create(&replica_path).expect(
+        "failed to create replica file [lc_instantiate_ctree_from_store_configs_and_replica]",
+    );
+
+    let sub_tree_arity = SubTreeArity::to_usize();
+
+    let offsets = (0..sub_tree_arity)
+        .map(|index| index * E::byte_len() * base_tree_leaves)
+        .collect();
+
+    let configs = (0..sub_tree_arity)
+        .map(|index| {
+            // prepare replica file content
+            let config = StoreConfig::new(
+                temp_dir_path,
+                format!("{}{}", String::from("config_id"), index.to_string()),
+                rows_to_discard
+                    .expect("can't get rows_to_discard [lc_instantiate_ctree_from_store_configs_and_replica]"),
+            );
+            // instantiation of this temp tree is required for binding config to actual file on disk for subsequent dumping the data to replica
+            let tree = instantiate_new_with_config::<E, A, DiskStore<E>, BaseTreeArity>(
+                base_tree_leaves,
+                Some(config.clone()),
+            );
+            dump_tree_data_to_replica::<E, BaseTreeArity>(
+                tree.leafs(),
+                tree.len(),
+                &config,
+                &mut replica_file,
+            );
+
+            // generate valid configs and bind them each to actual data of the tree
+            let lc_config = StoreConfig::from_config(
+                &config,
+                format!("{}{}", String::from("lc_config_id"), index.to_string()),
+                Some(tree.len()),
+            );
+            let mut tree = instantiate_new_with_config::<
+                E,
+                A,
+                LevelCacheStore<E, std::fs::File>,
+                BaseTreeArity,
+            >(base_tree_leaves, Some(lc_config.clone()));
+            tree.set_external_reader_path(&replica_path)
+                .expect("can't set external reader path [lc_instantiate_ctree_from_store_configs_and_replica]");
+            lc_config
+        })
+        .collect::<Vec<StoreConfig>>();
+
+    MerkleTree::from_store_configs_and_replica(
+        base_tree_leaves,
+        &configs,
+        &ReplicaConfig::new(&replica_path, offsets),
+    )
+    .expect(
+        "failed to instantiate compound tree [lc_instantiate_ctree_from_store_configs_and_replica]",
+    )
+}
+
+/// We don't add generic test runner function, since we test only single specific constructor. If more
+/// constructors appear, then creating and using runner would be beneficial
+#[test]
+fn test_compound_levelcache_trees() {
+    fn run_tests<E: Element + Copy, A: Algorithm<E>>(root: E) {
+        let base_tree_leaves = 64;
+        type OctTree = U8;
+        let expected_total_leaves = base_tree_leaves * 8;
+        let len = get_merkle_tree_len_generic::<OctTree, OctTree, U0>(base_tree_leaves).unwrap();
+
+        let distinguisher = "instantiate_cctree_from_sub_tree_store_configs_and_replica";
+        let temp_dir = tempdir::TempDir::new(distinguisher).unwrap();
+        let rows_to_discard = 0;
+        let tree = lc_instantiate_ctree_from_store_configs_and_replica::<E, A, OctTree, OctTree>(
+            base_tree_leaves,
+            &temp_dir.as_ref().to_path_buf(),
+            Some(rows_to_discard),
+        );
+
+        test_levelcache_tree_functionality::<E, A, OctTree, OctTree, U0>(
+            tree,
+            Some(rows_to_discard),
+            expected_total_leaves,
+            len,
+            root,
+        );
+    }
+
+    let root_xor128 = TestItem::from_slice(&[1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
+    run_tests::<TestItemType, TestXOR128>(root_xor128);
+
+    let root_sha256 = TestItem::from_slice(&[
+        32, 129, 168, 134, 58, 233, 155, 225, 88, 230, 247, 63, 18, 38, 194, 230,
     ]);
     run_tests::<TestItemType, TestSha256Hasher>(root_sha256);
 }
