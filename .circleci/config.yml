@@ -136,6 +136,30 @@ jobs:
           name: Run cargo doc
           command: cargo doc --all-features --no-deps
 
+  # Code coverage, using tarpaulin (https://github.com/xd009642/tarpaulin)
+  coverage-with-tarpaulin:
+    machine:
+      image: ubuntu-2004:202101-01
+
+    steps:
+      - checkout
+      - run:
+          name: Pull xd009642/tarpaulin:latest
+          command: docker pull xd009642/tarpaulin:latest
+
+      - run:
+          name: Coverage with tarpaulin (release profile)
+          command: >-
+            docker run
+            --security-opt seccomp=unconfined
+            -e RUSTFLAGS="-D warnings"
+            -e COVERAGE="1"
+            -v "${PWD}:/volume"
+            xd009642/tarpaulin:latest
+            cargo tarpaulin -v --release -- --nocapture
+      - store_artifacts:
+          path: coverage
+
 workflows:
   version: 2.1
 
@@ -163,3 +187,9 @@ workflows:
       - doc:
           requires:
             - cargo_fetch
+      - coverage-with-tarpaulin-approval:
+          type: approval
+      - coverage-with-tarpaulin:
+          requires:
+            - cargo_fetch
+            - coverage-with-tarpaulin-approval

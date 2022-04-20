@@ -1,5 +1,6 @@
 #![cfg(test)]
 #![allow(unsafe_code)]
+#![cfg(not(tarpaulin_include))]
 
 use crate::hash::{Algorithm, Hashable};
 use crate::merkle::Element;
