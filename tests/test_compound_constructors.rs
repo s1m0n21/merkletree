@@ -1,3 +1,5 @@
+#![cfg(not(tarpaulin_include))]
+
 pub mod common;
 
 use common::get_vector_of_base_trees;

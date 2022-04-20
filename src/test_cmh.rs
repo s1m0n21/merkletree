@@ -1,4 +1,5 @@
 #![cfg(test)]
+#![cfg(not(tarpaulin_include))]
 
 use crate::hash::{Algorithm, Hashable};
 use crate::merkle::MerkleTree;
