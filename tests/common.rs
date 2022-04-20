@@ -34,12 +34,16 @@ use merkletree::store::{DiskStore, LevelCacheStore, Store, StoreConfig};
 /// - ensuring that each tree has expected amount of leaves, expected length and expected root;
 /// - ensuring that inclusion proof can be successfully created and verified for each tree leaf;
 ///
-/// What is not covered:
+/// What is not covered / evaluated:
 ///
+/// - instantiation of compound tree using each base constructor;
+/// - instantiation of compound-compound tree using each base and each compound constructor;
 /// - instantiation of DiskStore and MmapStore compound trees;
+/// - instantiation of DiskStore and MmapStore compound-compound trees;
+/// - instantiation of compound tree using 'from_store_configs' with custom configurations
+/// - instantiation of compound-compound tree using 'from_sub_tree_store_configs' with custom configurations
 /// - instantiation of LevelCacheStore base tree using 'from_tree_slice_with_config' constructor
 /// - instantiation of LevelCacheStore compound trees using "regular" compound constructors ('from_slices_with_configs', 'from_store_configs');
-/// -
 
 /// Implementation of Element abstraction that we use in our integration tests
 #[derive(PartialEq, Eq, PartialOrd, Ord, Copy, Clone, Debug, Default)]

@@ -18,7 +18,7 @@ use merkletree::store::{
 };
 use typenum::{Unsigned, U0, U8};
 
-/// Constructors
+/// Compound tree constructors
 fn instantiate_ctree_from_trees<
     E: Element,
     A: Algorithm<E>,
@@ -175,6 +175,12 @@ fn run_test_compound_tree<
     );
 }
 
+/// Ultimately we cover following list of constructors for compound trees
+/// - from_trees
+/// - from_stores
+/// - from_slices
+/// - from_slices_with_configs
+/// - from_store_configs
 #[test]
 fn test_compound_constructors() {
     fn run_tests<E: Element + Copy, A: Algorithm<E>, S: Store<E>>(root: E) {
@@ -234,7 +240,7 @@ fn test_compound_constructors() {
     let expected_total_leaves = base_tree_leaves * 8;
     let len = get_merkle_tree_len_generic::<OctTree, OctTree, U0>(base_tree_leaves).unwrap();
 
-    // this constructor works only with DiskStore / MmapStore trees
+    // this instantiator works only with DiskStore / MmapStore trees
     run_test_compound_tree::<TestItemType, TestXOR128, DiskStore<TestItemType>, OctTree, OctTree>(
         instantiate_ctree_from_store_configs,
         base_tree_leaves,
@@ -256,7 +262,7 @@ fn test_compound_constructors() {
         root_sha256,
     );
 
-    // same constructor for MmapStore..
+    // same instantiator for MmapStore..
     run_test_compound_tree::<TestItemType, TestXOR128, MmapStore<TestItemType>, OctTree, OctTree>(
         instantiate_ctree_from_store_configs,
         base_tree_leaves,

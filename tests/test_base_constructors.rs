@@ -13,7 +13,7 @@ use merkletree::merkle::{
 };
 use merkletree::store::{DiskStore, LevelCacheStore, MmapStore, Store, StoreConfig, VecStore};
 
-/// Constructors
+/// Base tree constructors
 fn instantiate_try_from_iter<E: Element, A: Algorithm<E>, S: Store<E>, U: Unsigned>(
     leaves: usize,
     _config: Option<StoreConfig>,
