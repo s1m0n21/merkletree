@@ -1,4 +1,4 @@
-mod common;
+pub mod common;
 
 use rayon::iter::IntoParallelIterator;
 use typenum::{Unsigned, U0, U8};

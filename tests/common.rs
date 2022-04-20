@@ -10,8 +10,6 @@ use merkletree::hash::{Algorithm, Hashable};
 use merkletree::merkle::{Element, MerkleTree};
 use merkletree::store::{DiskStore, LevelCacheStore, Store, StoreConfig};
 
-// TODO finish this explanation (what is and is not covered by these integration tests)
-
 /// This is the common utilities that we use for integration tests
 ///
 /// In order to check that particular merkle tree will work as expected we need following stuff:
@@ -36,6 +34,8 @@ use merkletree::store::{DiskStore, LevelCacheStore, Store, StoreConfig};
 ///
 /// What is not covered / evaluated:
 ///
+/// - checking that arities' tests work for each base / compound / compound-compound constructor;
+/// - checking that arities' tests work for Disk / Mmap / LevelCache storages;
 /// - instantiation of compound tree using each base constructor;
 /// - instantiation of compound-compound tree using each base and each compound constructor;
 /// - instantiation of DiskStore and MmapStore compound trees;
@@ -56,7 +56,7 @@ pub type TestItemType = TestItem;
 
 impl AsRef<[u8]> for TestItem {
     fn as_ref(&self) -> &[u8] {
-        self.0.as_slice()
+        &self.0
     }
 }
 
@@ -71,7 +71,7 @@ impl Element for TestItemType {
         TestItem(el)
     }
     fn copy_to_slice(&self, bytes: &mut [u8]) {
-        bytes.copy_from_slice(self.0.as_slice());
+        bytes.copy_from_slice(&self.0);
     }
 }
 

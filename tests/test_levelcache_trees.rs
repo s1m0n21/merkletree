@@ -19,15 +19,12 @@
 /// Each instantiation of LevelCacheStore tree requires preparing valid configuration and replica file
 /// that point to actual tree data stored in filesystem, so most of the instantiators' logic is preparing
 /// those items and dumping data to filesystem
-mod common;
-
-use rayon::iter::IntoParallelIterator;
+pub mod common;
 
 use crate::common::{
     dump_tree_data_to_replica, generate_byte_slice_tree, generate_vector_of_elements,
-    generate_vector_of_usizes, get_vector_of_base_trees, instantiate_new_with_config,
-    serialize_tree, test_levelcache_tree_functionality, TestItem, TestItemType, TestSha256Hasher,
-    TestXOR128,
+    generate_vector_of_usizes, instantiate_new_with_config, serialize_tree,
+    test_levelcache_tree_functionality, TestItem, TestItemType, TestSha256Hasher, TestXOR128,
 };
 use merkletree::hash::Algorithm;
 use merkletree::merkle::{
@@ -274,6 +271,7 @@ fn lc_instantiate_from_byte_slice_with_config<
     tree
 }
 
+#[allow(dead_code)]
 fn lc_instantiate_from_tree_slice_with_config<
     E: Element,
     A: Algorithm<E>,
@@ -699,7 +697,7 @@ fn test_compound_compound_levelcache_trees() {
     run_tests::<TestItemType, TestXOR128>(root_xor128);
 
     let root_sha256 = TestItem::from_slice(&[
-        52, 152, 123, 224, 174, 42, 152, 12, 199, 4, 105, 245, 176, 59, 230, 86
+        52, 152, 123, 224, 174, 42, 152, 12, 199, 4, 105, 245, 176, 59, 230, 86,
     ]);
     run_tests::<TestItemType, TestSha256Hasher>(root_sha256);
 }

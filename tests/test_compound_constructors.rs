@@ -1,21 +1,16 @@
-mod common;
+pub mod common;
 
 use common::get_vector_of_base_trees;
-use std::ops::Sub;
-use std::path::PathBuf;
 
 use crate::common::{
-    get_vector_of_base_trees_as_slices, instantiate_new, instantiate_new_with_config,
-    serialize_tree, test_disk_mmap_vec_tree_functionality, test_levelcache_tree_functionality,
-    TestItem, TestItemType, TestSha256Hasher, TestXOR128,
+    get_vector_of_base_trees_as_slices, instantiate_new_with_config, serialize_tree,
+    test_disk_mmap_vec_tree_functionality, TestItem, TestItemType, TestSha256Hasher, TestXOR128,
 };
 use merkletree::hash::Algorithm;
 use merkletree::merkle::{
     get_merkle_tree_len_generic, get_merkle_tree_row_count, Element, MerkleTree,
 };
-use merkletree::store::{
-    DiskStore, LevelCacheStore, MmapStore, ReplicaConfig, Store, StoreConfig, VecStore,
-};
+use merkletree::store::{DiskStore, MmapStore, Store, StoreConfig, VecStore};
 use typenum::{Unsigned, U0, U8};
 
 /// Compound tree constructors
@@ -93,7 +88,7 @@ fn instantiate_ctree_from_slices_with_configs<
     let vec_of_slices: Vec<&[u8]> = base_trees.iter().map(|x| &x[..]).collect();
 
     let vec_of_configs = (0..vec_of_slices.len())
-        .map(|index| StoreConfig::default())
+        .map(|_| StoreConfig::default())
         .collect::<Vec<StoreConfig>>();
 
     MerkleTree::<E, A, S, BaseTreeArity, SubTreeArity>::from_slices_with_configs(
