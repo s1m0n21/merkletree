@@ -7,7 +7,7 @@ use crate::merkle::{
     FromIndexedParallelIterator, MerkleTree,
 };
 use crate::store::{
-    DiskStore, DiskStoreProducer, ExternalReader, LevelCacheStore, MmapStore, ReplicaConfig, Store,
+    DiskStore, DiskStoreProducer, ExternalReader, LevelCacheStore, ReplicaConfig, Store,
     StoreConfig, StoreConfigDataVersion, VecStore, SMALL_TREE_BUILD,
 };
 use crypto::digest::Digest;
@@ -21,18 +21,7 @@ use std::path::PathBuf;
 use typenum::marker_traits::Unsigned;
 use typenum::{U2, U3, U4, U5, U7, U8};
 
-use crate::test_common::{Item, Sha256Hasher, BINARY_ARITY, OCT_ARITY, QUAD_ARITY, XOR128};
-
-pub fn get_disk_tree_from_slice<U: Unsigned>(
-    leafs: usize,
-    config: StoreConfig,
-) -> MerkleTree<[u8; 16], XOR128, DiskStore<[u8; 16]>, U> {
-    let mut x = Vec::with_capacity(leafs);
-    for i in 0..leafs {
-        x.push(i * 93);
-    }
-    MerkleTree::from_data_with_config(&x, config).expect("failed to create tree from slice")
-}
+use crate::test_common::{Item, Sha256Hasher, BINARY_ARITY, OCT_ARITY, XOR128};
 
 fn build_disk_tree_from_iter<U: Unsigned>(
     leafs: usize,
@@ -135,40 +124,6 @@ fn get_levelcache_tree_from_iter<U: Unsigned>(
         .expect("Failed to set external reader");
 
     mt
-}
-
-fn test_disk_tree_from_iter<U: Unsigned>(
-    leafs: usize,
-    len: usize,
-    row_count: usize,
-    num_challenges: usize,
-    rows_to_discard: usize,
-) {
-    let branches = U::to_usize();
-
-    let name = format!("test_disk_tree_from_iter-{}-{}-{}", leafs, len, row_count);
-    let temp_dir = tempdir::TempDir::new(&name).unwrap();
-
-    // Construct and store an MT using a named DiskStore.
-    let config = StoreConfig::new(temp_dir.path(), String::from(name), rows_to_discard);
-    build_disk_tree_from_iter::<U>(leafs, len, row_count, &config);
-
-    // Sanity check loading the store from disk and then re-creating
-    // the MT from it.
-    assert!(DiskStore::<[u8; 16]>::is_consistent(len, branches, &config).unwrap());
-    let store = DiskStore::new_from_disk(len, branches, &config).unwrap();
-    let mt_cache: MerkleTree<[u8; 16], XOR128, DiskStore<_>, U> =
-        MerkleTree::from_data_store(store, leafs).unwrap();
-
-    assert_eq!(mt_cache.len(), len);
-    assert_eq!(mt_cache.leafs(), leafs);
-    assert_eq!(mt_cache.row_count(), row_count);
-
-    for i in 0..num_challenges {
-        let index = i * (leafs / num_challenges);
-        let p = mt_cache.gen_proof(index).unwrap();
-        assert!(p.validate::<XOR128>().expect("failed to validate"));
-    }
 }
 
 fn test_levelcache_v1_tree_from_iter<U: Unsigned>(
@@ -411,49 +366,6 @@ fn test_hasher_light() {
 
 // B: Branching factor of sub-trees
 // N: Branching factor of top-layer
-fn test_compound_tree_from_store_configs<B: Unsigned, N: Unsigned>(sub_tree_leafs: usize) {
-    let branches = B::to_usize();
-    assert!(is_merkle_tree_size_valid(sub_tree_leafs, branches));
-
-    let sub_tree_count = N::to_usize();
-    let mut sub_tree_configs = Vec::with_capacity(sub_tree_count);
-
-    let temp_dir = tempdir::TempDir::new("test_read_into").unwrap();
-
-    for i in 0..sub_tree_count {
-        let config = StoreConfig::new(
-            temp_dir.path(),
-            format!("test-compound-tree-from-store-{}", i),
-            StoreConfig::default_rows_to_discard(sub_tree_leafs, branches),
-        );
-        get_disk_tree_from_slice::<B>(sub_tree_leafs, config.clone());
-        sub_tree_configs.push(config);
-    }
-
-    let tree: MerkleTree<[u8; 16], XOR128, DiskStore<_>, B, N> =
-        MerkleTree::from_store_configs(sub_tree_leafs, &sub_tree_configs)
-            .expect("Failed to build compound tree");
-
-    assert_eq!(
-        tree.len(),
-        (get_merkle_tree_len(sub_tree_leafs, branches).expect("failed to get merkle len")
-            * sub_tree_count)
-            + 1
-    );
-    assert_eq!(tree.leafs(), sub_tree_count * sub_tree_leafs);
-
-    for i in 0..tree.leafs() {
-        // Make sure all elements are accessible.
-        let _ = tree.read_at(i).expect("Failed to read tree element");
-
-        // Make sure all proofs validate.
-        let p = tree.gen_proof(i).unwrap();
-        assert!(p.validate::<XOR128>().expect("failed to validate"));
-    }
-}
-
-// B: Branching factor of sub-trees
-// N: Branching factor of top-layer
 fn test_compound_levelcache_tree_from_store_configs<B: Unsigned, N: Unsigned>(
     sub_tree_leafs: usize,
 ) {
@@ -547,18 +459,6 @@ fn test_compound_levelcache_tree_from_store_configs<B: Unsigned, N: Unsigned>(
 }
 
 #[test]
-fn test_compound_quad_trees_from_store_configs() {
-    // 3 quad trees each with 4 leafs joined by top layer
-    test_compound_tree_from_store_configs::<U4, U3>(4);
-
-    // 5 quad trees each with 16 leafs joined by top layer
-    test_compound_tree_from_store_configs::<U4, U5>(16);
-
-    // 7 quad trees each with 64 leafs joined by top layer
-    test_compound_tree_from_store_configs::<U4, U7>(64);
-}
-
-#[test]
 fn test_compound_levelcache_quad_trees_from_store_configs() {
     // 3 quad trees each with 16 leafs joined by top layer
     test_compound_levelcache_tree_from_store_configs::<U4, U3>(16);
@@ -571,18 +471,6 @@ fn test_compound_levelcache_quad_trees_from_store_configs() {
 }
 
 #[test]
-fn test_compound_octrees_from_store_configs() {
-    // 3 octrees each with 8 leafs joined by top layer
-    test_compound_tree_from_store_configs::<U8, U3>(8);
-
-    // 5 octrees each with 64 leafs joined by top layer
-    test_compound_tree_from_store_configs::<U8, U5>(64);
-
-    // 7 octrees each with 320 leafs joined by top layer
-    test_compound_tree_from_store_configs::<U8, U7>(512);
-}
-
-#[test]
 fn test_compound_levelcache_octrees_trees_from_store_configs() {
     // 3 octrees trees each with 64 leafs joined by top layer
     test_compound_levelcache_tree_from_store_configs::<U8, U3>(64);
@@ -592,19 +480,6 @@ fn test_compound_levelcache_octrees_trees_from_store_configs() {
 
     // 7 octrees trees each with 2048 leafs joined by top layer
     test_compound_levelcache_tree_from_store_configs::<U8, U7>(4096);
-}
-
-#[test]
-#[ignore]
-fn test_xlarge_quad_with_disk_store() {
-    let (leafs, len, row_count, num_challenges) = { (1073741824, 1431655765, 16, 2048) };
-    test_disk_tree_from_iter::<U4>(
-        leafs,
-        len,
-        row_count,
-        num_challenges,
-        StoreConfig::default_rows_to_discard(leafs, QUAD_ARITY),
-    );
 }
 
 #[test]
@@ -649,19 +524,6 @@ fn test_large_quad_with_partial_cache_full() {
 
 #[test]
 #[ignore]
-fn test_large_octo_with_disk_store() {
-    let (leafs, len, row_count, num_challenges) = { (2097152, 2396745, 8, 2048) };
-    test_disk_tree_from_iter::<U8>(
-        leafs,
-        len,
-        row_count,
-        num_challenges,
-        StoreConfig::default_rows_to_discard(leafs, OCT_ARITY),
-    );
-}
-
-#[test]
-#[ignore]
 fn test_large_octo_with_partial_cache() {
     let (leafs, len, row_count, num_challenges) = { (2097152, 2396745, 8, 2048) };
     for rows_to_discard in 5..7 {
@@ -692,19 +554,6 @@ fn test_large_octo_with_partial_cache_full() {
             rows_to_discard,
             StoreConfig::default_rows_to_discard(leafs, OCT_ARITY),
         ),
-    );
-}
-
-#[test]
-#[ignore]
-fn test_xlarge_octo_with_disk_store() {
-    let (leafs, len, row_count, num_challenges) = { (1073741824, 1227133513, 11, 2048) };
-    test_disk_tree_from_iter::<U8>(
-        leafs,
-        len,
-        row_count,
-        num_challenges,
-        StoreConfig::default_rows_to_discard(leafs, OCT_ARITY),
     );
 }
 
@@ -754,244 +603,6 @@ fn test_read_into() {
     for (pos, &data) in target_data.iter().enumerate() {
         mt2.read_into(pos, &mut read_buffer).unwrap();
         assert_eq!(read_buffer, data);
-    }
-}
-
-#[test]
-fn test_simple_tree() {
-    let answer: Vec<Vec<[u8; 16]>> = vec![
-        vec![
-            [0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-            [0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-            [1, 0, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-        ],
-        vec![
-            [0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-            [0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-            [0, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-            [0, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-            [1, 0, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-            [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-            [1, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-        ],
-        vec![
-            [0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-            [0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-            [0, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-            [0, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-            [1, 0, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-            [1, 0, 7, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-            [1, 0, 0, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-        ],
-        vec![
-            [0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-            [0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-            [0, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-            [0, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-            [0, 5, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-            [0, 5, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-            [1, 0, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-            [1, 0, 7, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-            [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-            [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-            [1, 0, 0, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-            [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-            [1, 0, 0, 0, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-        ],
-        vec![
-            [0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-            [0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-            [0, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-            [0, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-            [0, 5, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-            [0, 6, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-            [1, 0, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-            [1, 0, 7, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-            [1, 0, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-            [1, 0, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-            [1, 0, 0, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-            [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-            [1, 0, 0, 0, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-        ],
-        vec![
-            [0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-            [0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-            [0, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-            [0, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-            [0, 5, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-            [0, 6, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-            [0, 7, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-            [0, 7, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-            [1, 0, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-            [1, 0, 7, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-            [1, 0, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-            [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-            [1, 0, 0, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-            [1, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-            [1, 0, 0, 0, 7, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-        ],
-    ];
-
-    // pow 2 only supported
-    for items in [2, 4].iter() {
-        let mut a = XOR128::new();
-        let mt_base: MerkleTree<[u8; 16], XOR128, VecStore<_>> = MerkleTree::try_from_iter(
-            [1, 2, 3, 4, 5, 6, 7, 8]
-                .iter()
-                .map(|x| {
-                    a.reset();
-                    x.hash(&mut a);
-                    Ok(a.hash())
-                })
-                .take(*items),
-        )
-        .unwrap();
-
-        assert_eq!(mt_base.leafs(), *items);
-        assert_eq!(
-            mt_base.row_count(),
-            get_merkle_tree_row_count(mt_base.leafs(), BINARY_ARITY)
-        );
-        assert_eq!(
-            mt_base.read_range(0, mt_base.len()).unwrap(),
-            answer[*items - 2].as_slice()
-        );
-        assert_eq!(mt_base.read_at(0).unwrap(), mt_base.read_at(0).unwrap());
-
-        for i in 0..mt_base.leafs() {
-            let p = mt_base.gen_proof(i).unwrap();
-            assert!(p.validate::<XOR128>().expect("failed to validate"));
-        }
-
-        let mut a2 = XOR128::new();
-        let leafs: Vec<u8> = [1, 2, 3, 4, 5, 6, 7, 8]
-            .iter()
-            .map(|x| {
-                a.reset();
-                x.hash(&mut a);
-                a.hash()
-            })
-            .take(*items)
-            .map(|item| {
-                a2.reset();
-                a2.leaf(item).as_ref().to_vec()
-            })
-            .flatten()
-            .collect();
-        {
-            let mt1: MerkleTree<[u8; 16], XOR128, VecStore<_>> =
-                MerkleTree::from_byte_slice(&leafs).unwrap();
-            assert_eq!(mt1.leafs(), *items);
-            assert_eq!(
-                mt1.row_count(),
-                get_merkle_tree_row_count(mt1.leafs(), BINARY_ARITY)
-            );
-            assert_eq!(
-                mt_base.read_range(0, mt_base.len()).unwrap(),
-                answer[*items - 2].as_slice()
-            );
-
-            for i in 0..mt1.leafs() {
-                let p = mt1.gen_proof(i).unwrap();
-                assert!(p.validate::<XOR128>().expect("failed to validate"));
-            }
-        }
-
-        {
-            let mt2: MerkleTree<[u8; 16], XOR128, DiskStore<_>> =
-                MerkleTree::from_byte_slice(&leafs).unwrap();
-            assert_eq!(mt2.leafs(), *items);
-            assert_eq!(
-                mt2.row_count(),
-                get_merkle_tree_row_count(mt2.leafs(), BINARY_ARITY)
-            );
-            for i in 0..mt2.leafs() {
-                let p = mt2.gen_proof(i).unwrap();
-                assert!(p.validate::<XOR128>().expect("failed to validate"));
-            }
-        }
-    }
-}
-
-#[test]
-fn test_large_tree() {
-    let count = SMALL_TREE_BUILD * 2;
-    test_disk_tree_from_iter::<U2>(
-        count,
-        get_merkle_tree_len(count, BINARY_ARITY).expect("failed to get merkle len"),
-        get_merkle_tree_row_count(count, BINARY_ARITY),
-        count,
-        StoreConfig::default_rows_to_discard(count, BINARY_ARITY),
-    );
-}
-
-#[test]
-fn test_large_tree_disk() {
-    let a = XOR128::new();
-    let count = SMALL_TREE_BUILD * SMALL_TREE_BUILD * 8;
-
-    let mt_disk: MerkleTree<[u8; 16], XOR128, DiskStore<_>> =
-        MerkleTree::from_par_iter((0..count).into_par_iter().map(|x| {
-            let mut xor_128 = a.clone();
-            xor_128.reset();
-            x.hash(&mut xor_128);
-            93.hash(&mut xor_128);
-            xor_128.hash()
-        }))
-        .unwrap();
-    assert_eq!(
-        mt_disk.len(),
-        get_merkle_tree_len(count, BINARY_ARITY).expect("failed to get merkle len")
-    );
-}
-
-#[test]
-fn test_mmap_tree() {
-    use std::{thread, time};
-
-    let mut a = XOR128::new();
-    let count = SMALL_TREE_BUILD * SMALL_TREE_BUILD * 128;
-
-    let mut mt_map: MerkleTree<[u8; 16], XOR128, MmapStore<_>> =
-        MerkleTree::try_from_iter((0..count).map(|x| {
-            a.reset();
-            x.hash(&mut a);
-            93.hash(&mut a);
-            Ok(a.hash())
-        }))
-        .unwrap();
-    assert_eq!(
-        mt_map.len(),
-        get_merkle_tree_len(count, BINARY_ARITY).expect("failed to get merkle len")
-    );
-
-    let config = {
-        let temp_dir = tempdir::TempDir::new("test_mmap_tree").unwrap();
-        let temp_path = temp_dir.path();
-        StoreConfig::new(
-            &temp_path,
-            String::from("test-mmap-tree"),
-            StoreConfig::default_rows_to_discard(count, BINARY_ARITY),
-        )
-    };
-
-    println!("Sleeping ... (high mem usage is visible)");
-    thread::sleep(time::Duration::from_secs(5));
-
-    println!("Compacting ...");
-    let res = mt_map
-        .compact(config.clone(), 1)
-        .expect("Compaction failed");
-    assert_eq!(res, true);
-
-    println!("Sleeping ... (reduced mem usage is visible)");
-    thread::sleep(time::Duration::from_secs(10));
-
-    mt_map.reinit().expect("Failed to re-init the mmap");
-
-    for i in 0..100 {
-        let p = mt_map.gen_proof(i * (count / 100)).unwrap();
-        assert!(p.validate::<XOR128>().expect("failed to validate"));
     }
 }
 

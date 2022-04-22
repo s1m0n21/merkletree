@@ -1835,6 +1835,8 @@ pub fn get_merkle_tree_len_generic<
     Ok(base_tree_len)
 }
 
+/// FIXME: Ideally this function should be replaced with 'get_merkle_tree_len_generic' defined above,
+/// since it considers compound and compound-compound trees
 // Tree length calculation given the number of leafs in the tree and the branches.
 pub fn get_merkle_tree_len(leafs: usize, branches: usize) -> Result<usize> {
     ensure!(leafs >= branches, "leaf and branch mis-match");
@@ -2056,6 +2058,9 @@ where
     Ok(())
 }
 
+#[cfg(test)]
+use typenum::{U1, U11, U16, U4};
+
 #[test]
 fn test_get_merkle_tree_methods() {
     assert!(get_merkle_tree_len(16, 4).is_ok());
@@ -2066,6 +2071,28 @@ fn test_get_merkle_tree_methods() {
     assert!(get_merkle_tree_len(1, 2).is_err());
     assert!(get_merkle_tree_len(4, 16).is_err());
     assert!(get_merkle_tree_len(1024, 11).is_err());
+
+    assert!(get_merkle_tree_len_generic::<U4, U0, U0>(16).is_ok());
+    assert!(get_merkle_tree_len_generic::<U1, U0, U0>(3).is_ok());
+
+    assert!(get_merkle_tree_len_generic::<U0, U0, U0>(0).is_err());
+    assert!(get_merkle_tree_len_generic::<U0, U0, U0>(1).is_err());
+    assert!(get_merkle_tree_len_generic::<U2, U0, U0>(1).is_err());
+    assert!(get_merkle_tree_len_generic::<U16, U0, U0>(4).is_err());
+    assert!(get_merkle_tree_len_generic::<U11, U0, U0>(1024).is_err());
+
+    assert_eq!(
+        get_merkle_tree_len_generic::<U2, U0, U0>(16).unwrap(),
+        16 + 8 + 4 + 2 + 1
+    );
+    assert_eq!(
+        get_merkle_tree_len_generic::<U2, U4, U0>(16).unwrap(),
+        (16 + 8 + 4 + 2 + 1) * 4 + 1
+    );
+    assert_eq!(
+        get_merkle_tree_len_generic::<U2, U4, U2>(16).unwrap(),
+        ((16 + 8 + 4 + 2 + 1) * 4 + 1) * 2 + 1
+    );
 
     assert!(get_merkle_tree_leafs(31, 2).is_ok());
     assert!(get_merkle_tree_leafs(15, 2).is_ok());
