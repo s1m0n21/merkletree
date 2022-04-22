@@ -3,7 +3,7 @@
 pub mod common;
 
 use rayon::iter::IntoParallelIterator;
-use typenum::{Unsigned, U0, U8};
+use typenum::{Unsigned, U0, U2, U8};
 
 use crate::common::{
     generate_vector_of_usizes, instantiate_new, instantiate_new_with_config,
@@ -11,9 +11,12 @@ use crate::common::{
 };
 use merkletree::hash::Algorithm;
 use merkletree::merkle::{
-    get_merkle_tree_len_generic, Element, FromIndexedParallelIterator, MerkleTree,
+    get_merkle_tree_len_generic, get_merkle_tree_row_count, Element, FromIndexedParallelIterator,
+    MerkleTree,
 };
-use merkletree::store::{DiskStore, LevelCacheStore, MmapStore, Store, StoreConfig, VecStore};
+use merkletree::store::{
+    DiskStore, LevelCacheStore, MmapStore, Store, StoreConfig, VecStore, SMALL_TREE_BUILD,
+};
 
 /// Base tree constructors
 fn instantiate_try_from_iter<E: Element, A: Algorithm<E>, S: Store<E>, U: Unsigned>(
@@ -465,5 +468,47 @@ fn test_storage_types() {
             StoreConfig::default_rows_to_discard(expected_total_leaves, branches),
         )),
         LevelCacheStorage::new(1).unwrap(),
+    );
+}
+
+// big test moved from test_xor128.rs
+#[test]
+#[ignore]
+fn test_large_base_trees() {
+    fn run_test<BaseTreeArity: Unsigned>(
+        leaves: usize,
+        len: usize,
+        row_count: usize,
+        num_challenges: usize,
+    ) {
+        let big_tree =
+            instantiate_new::<TestItemType, TestXOR128, VecStore<TestItemType>, BaseTreeArity>(
+                leaves, None,
+            );
+
+        assert_eq!(big_tree.row_count(), row_count);
+        assert_eq!(big_tree.len(), len);
+
+        // Selectively verify that proving works.
+        for i in 0..num_challenges {
+            let index = i * (leaves / num_challenges);
+            let proof = big_tree.gen_proof(index).expect("Failed to generate proof");
+            assert!(proof
+                .validate::<TestXOR128>()
+                .expect("failed to validate proof"));
+        }
+    }
+
+    let (leaves, len, row_count, num_challenges) = { (16777216, 19173961, 9, 1024) };
+    run_test::<U8>(leaves, len, row_count, num_challenges);
+
+    let leaves = SMALL_TREE_BUILD * 2;
+    let num_challenges = SMALL_TREE_BUILD * 2;
+    let branches = 2;
+    run_test::<U2>(
+        leaves,
+        get_merkle_tree_len_generic::<U2, U0, U0>(leaves).expect("can't get tree len"),
+        get_merkle_tree_row_count(leaves, branches),
+        num_challenges,
     );
 }
