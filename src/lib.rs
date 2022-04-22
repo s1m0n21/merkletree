@@ -101,9 +101,6 @@ pub mod merkle;
 /// Re-usable Testing primitives
 pub mod test_common;
 
-/// Tests XOR128.
-mod test_xor128;
-
 /// Tests data.
 mod test_item;
 
