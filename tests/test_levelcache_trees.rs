@@ -23,18 +23,20 @@
 /// those items and dumping data to filesystem
 pub mod common;
 
-use crate::common::{
-    dump_tree_data_to_replica, generate_byte_slice_tree, generate_vector_of_elements,
-    generate_vector_of_usizes, instantiate_new_with_config, serialize_tree,
-    test_levelcache_tree_functionality, TestItem, TestItemType, TestSha256Hasher, TestXOR128,
-};
+use std::path::PathBuf;
+
 use merkletree::hash::Algorithm;
 use merkletree::merkle::{
     get_merkle_tree_len_generic, Element, FromIndexedParallelIterator, MerkleTree,
 };
 use merkletree::store::{DiskStore, LevelCacheStore, ReplicaConfig, StoreConfig, VecStore};
-use std::path::PathBuf;
 use typenum::{Unsigned, U0, U2, U8};
+
+use crate::common::{
+    dump_tree_data_to_replica, generate_byte_slice_tree, generate_vector_of_elements,
+    generate_vector_of_usizes, instantiate_new_with_config, serialize_tree,
+    test_levelcache_tree_functionality, TestItem, TestItemType, TestSha256Hasher, TestXOR128,
+};
 
 /// LevelCacheStore constructors of base trees
 fn lc_instantiate_new_with_config<E: Element, A: Algorithm<E>, BaseTreeArity: Unsigned>(
@@ -361,13 +363,12 @@ fn test_base_levelcache_trees_iterable() {
     fn run_tests<E: Element + Copy, A: Algorithm<E>>(root: E) {
         let base_tree_leaves = 64;
         let expected_total_leaves = base_tree_leaves;
-        type OctTree = U8;
-        let len = get_merkle_tree_len_generic::<OctTree, U0, U0>(base_tree_leaves).unwrap();
+        let len = get_merkle_tree_len_generic::<U8, U0, U0>(base_tree_leaves).unwrap();
         let rows_to_discard = 0;
 
         let distinguisher = "lc_instantiate_new_with_config";
         let temp_dir = tempdir::TempDir::new(distinguisher).unwrap();
-        run_test_base_lc_tree::<E, A, OctTree>(
+        run_test_base_lc_tree::<E, A, U8>(
             lc_instantiate_new_with_config,
             base_tree_leaves,
             &temp_dir.as_ref().to_path_buf(),
@@ -379,7 +380,7 @@ fn test_base_levelcache_trees_iterable() {
 
         let distinguisher = "lc_instantiate_try_from_iter_with_config";
         let temp_dir = tempdir::TempDir::new(distinguisher).unwrap();
-        run_test_base_lc_tree::<E, A, OctTree>(
+        run_test_base_lc_tree::<E, A, U8>(
             lc_instantiate_try_from_iter_with_config,
             base_tree_leaves,
             &temp_dir.as_ref().to_path_buf(),
@@ -391,7 +392,7 @@ fn test_base_levelcache_trees_iterable() {
 
         let distinguisher = "lc_instantiate_from_par_iter_with_config";
         let temp_dir = tempdir::TempDir::new(distinguisher).unwrap();
-        run_test_base_lc_tree::<E, A, OctTree>(
+        run_test_base_lc_tree::<E, A, U8>(
             lc_instantiate_from_par_iter_with_config,
             base_tree_leaves,
             &temp_dir.as_ref().to_path_buf(),
@@ -417,13 +418,12 @@ fn test_base_levelcache_trees_iterable_hashable_and_serialization() {
     fn run_tests<E: Element + Copy, A: Algorithm<E>>(root: E) {
         let base_tree_leaves = 64;
         let expected_total_leaves = base_tree_leaves;
-        type OctTree = U8;
-        let len = get_merkle_tree_len_generic::<OctTree, U0, U0>(base_tree_leaves).unwrap();
+        let len = get_merkle_tree_len_generic::<U8, U0, U0>(base_tree_leaves).unwrap();
         let rows_to_discard = 0;
 
         let distinguisher = "lc_instantiate_from_data_with_config";
         let temp_dir = tempdir::TempDir::new(distinguisher).unwrap();
-        run_test_base_lc_tree::<E, A, OctTree>(
+        run_test_base_lc_tree::<E, A, U8>(
             lc_instantiate_from_data_with_config,
             base_tree_leaves,
             &temp_dir.as_ref().to_path_buf(),
@@ -435,7 +435,7 @@ fn test_base_levelcache_trees_iterable_hashable_and_serialization() {
 
         let distinguisher = "lc_instantiate_from_byte_slice_with_config";
         let temp_dir = tempdir::TempDir::new(distinguisher).unwrap();
-        run_test_base_lc_tree::<E, A, OctTree>(
+        run_test_base_lc_tree::<E, A, U8>(
             lc_instantiate_from_byte_slice_with_config,
             base_tree_leaves,
             &temp_dir.as_ref().to_path_buf(),
@@ -448,7 +448,7 @@ fn test_base_levelcache_trees_iterable_hashable_and_serialization() {
         /* TODO investigate, why this test fails
         let distinguisher = "lc_instantiate_from_tree_slice_with_config";
         let temp_dir = tempdir::TempDir::new(distinguisher).unwrap();
-        run_test_base_lc_tree::<E, A, OctTree>(
+        run_test_base_lc_tree::<E, A, U8>(
             lc_instantiate_from_tree_slice_with_config,
             base_tree_leaves,
             &temp_dir.as_ref().to_path_buf(),
@@ -546,20 +546,19 @@ fn lc_instantiate_ctree_from_store_configs_and_replica<
 fn test_compound_levelcache_trees() {
     fn run_tests<E: Element + Copy, A: Algorithm<E>>(root: E) {
         let base_tree_leaves = 64;
-        type OctTree = U8;
         let expected_total_leaves = base_tree_leaves * 8;
-        let len = get_merkle_tree_len_generic::<OctTree, OctTree, U0>(base_tree_leaves).unwrap();
+        let len = get_merkle_tree_len_generic::<U8, U8, U0>(base_tree_leaves).unwrap();
 
         let distinguisher = "instantiate_cctree_from_sub_tree_store_configs_and_replica";
         let temp_dir = tempdir::TempDir::new(distinguisher).unwrap();
         let rows_to_discard = 0;
-        let tree = lc_instantiate_ctree_from_store_configs_and_replica::<E, A, OctTree, OctTree>(
+        let tree = lc_instantiate_ctree_from_store_configs_and_replica::<E, A, U8, U8>(
             base_tree_leaves,
             &temp_dir.as_ref().to_path_buf(),
             Some(rows_to_discard),
         );
 
-        test_levelcache_tree_functionality::<E, A, OctTree, OctTree, U0>(
+        test_levelcache_tree_functionality::<E, A, U8, U8, U0>(
             tree,
             Some(rows_to_discard),
             expected_total_leaves,

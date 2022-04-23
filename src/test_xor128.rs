@@ -1,6 +1,18 @@
 #![cfg(test)]
 #![cfg(not(tarpaulin_include))]
 
+use std::fs::OpenOptions;
+use std::io::Write as ioWrite;
+use std::num::ParseIntError;
+use std::os::unix::prelude::FileExt;
+use std::path::PathBuf;
+
+use crypto::digest::Digest;
+use crypto::sha2::Sha256;
+use rayon::iter::{plumbing::Producer, IntoParallelIterator, ParallelIterator};
+use typenum::marker_traits::Unsigned;
+use typenum::{U2, U3, U4, U5, U7, U8};
+
 use crate::hash::{Algorithm, Hashable};
 use crate::merkle::{
     get_merkle_tree_len, get_merkle_tree_row_count, is_merkle_tree_size_valid, Element,
@@ -10,17 +22,6 @@ use crate::store::{
     DiskStore, DiskStoreProducer, ExternalReader, LevelCacheStore, ReplicaConfig, Store,
     StoreConfig, StoreConfigDataVersion, VecStore, SMALL_TREE_BUILD,
 };
-use crypto::digest::Digest;
-use crypto::sha2::Sha256;
-use rayon::iter::{plumbing::Producer, IntoParallelIterator, ParallelIterator};
-use std::fs::OpenOptions;
-use std::io::Write as ioWrite;
-use std::num::ParseIntError;
-use std::os::unix::prelude::FileExt;
-use std::path::PathBuf;
-use typenum::marker_traits::Unsigned;
-use typenum::{U2, U3, U4, U5, U7, U8};
-
 use crate::test_common::{Item, Sha256Hasher, BINARY_ARITY, OCT_ARITY, XOR128};
 
 fn build_disk_tree_from_iter<U: Unsigned>(

@@ -1,19 +1,19 @@
 #![cfg(not(tarpaulin_include))]
-
 pub mod common;
 
-use common::get_vector_of_base_trees;
+use typenum::{Unsigned, U0, U8};
 
-use crate::common::{
-    get_vector_of_base_trees_as_slices, instantiate_new_with_config, serialize_tree,
-    test_disk_mmap_vec_tree_functionality, TestItem, TestItemType, TestSha256Hasher, TestXOR128,
-};
 use merkletree::hash::Algorithm;
 use merkletree::merkle::{
     get_merkle_tree_len_generic, get_merkle_tree_row_count, Element, MerkleTree,
 };
 use merkletree::store::{DiskStore, MmapStore, Store, StoreConfig, VecStore};
-use typenum::{Unsigned, U0, U8};
+
+use common::{
+    get_vector_of_base_trees, get_vector_of_base_trees_as_slices, instantiate_new_with_config,
+    serialize_tree, test_disk_mmap_vec_tree_functionality, TestItem, TestItemType,
+    TestSha256Hasher, TestXOR128,
+};
 
 /// Compound tree constructors
 fn instantiate_ctree_from_trees<
@@ -182,11 +182,10 @@ fn run_test_compound_tree<
 fn test_compound_constructors() {
     fn run_tests<E: Element + Copy, A: Algorithm<E>, S: Store<E>>(root: E) {
         let base_tree_leaves = 64;
-        type OctTree = U8;
         let expected_total_leaves = base_tree_leaves * 8;
-        let len = get_merkle_tree_len_generic::<OctTree, OctTree, U0>(base_tree_leaves).unwrap();
+        let len = get_merkle_tree_len_generic::<U8, U8, U0>(base_tree_leaves).unwrap();
 
-        run_test_compound_tree::<E, A, S, OctTree, OctTree>(
+        run_test_compound_tree::<E, A, S, U8, U8>(
             instantiate_ctree_from_trees,
             base_tree_leaves,
             expected_total_leaves,
@@ -194,7 +193,7 @@ fn test_compound_constructors() {
             root,
         );
 
-        run_test_compound_tree::<E, A, S, OctTree, OctTree>(
+        run_test_compound_tree::<E, A, S, U8, U8>(
             instantiate_ctree_from_stores,
             base_tree_leaves,
             expected_total_leaves,
@@ -202,7 +201,7 @@ fn test_compound_constructors() {
             root,
         );
 
-        run_test_compound_tree::<E, A, S, OctTree, OctTree>(
+        run_test_compound_tree::<E, A, S, U8, U8>(
             instantiate_ctree_from_slices,
             base_tree_leaves,
             expected_total_leaves,
@@ -210,7 +209,7 @@ fn test_compound_constructors() {
             root,
         );
 
-        run_test_compound_tree::<E, A, S, OctTree, OctTree>(
+        run_test_compound_tree::<E, A, S, U8, U8>(
             instantiate_ctree_from_slices_with_configs,
             base_tree_leaves,
             expected_total_leaves,
@@ -233,25 +232,18 @@ fn test_compound_constructors() {
     //run_tests::<TestItemType, TestSha256Hasher, MmapStore<TestItemType>>(root_sha256);
 
     let base_tree_leaves = 64;
-    type OctTree = U8;
     let expected_total_leaves = base_tree_leaves * 8;
-    let len = get_merkle_tree_len_generic::<OctTree, OctTree, U0>(base_tree_leaves).unwrap();
+    let len = get_merkle_tree_len_generic::<U8, U8, U0>(base_tree_leaves).unwrap();
 
     // this instantiator works only with DiskStore / MmapStore trees
-    run_test_compound_tree::<TestItemType, TestXOR128, DiskStore<TestItemType>, OctTree, OctTree>(
+    run_test_compound_tree::<TestItemType, TestXOR128, DiskStore<TestItemType>, U8, U8>(
         instantiate_ctree_from_store_configs,
         base_tree_leaves,
         expected_total_leaves,
         len,
         root_xor128,
     );
-    run_test_compound_tree::<
-        TestItemType,
-        TestSha256Hasher,
-        DiskStore<TestItemType>,
-        OctTree,
-        OctTree,
-    >(
+    run_test_compound_tree::<TestItemType, TestSha256Hasher, DiskStore<TestItemType>, U8, U8>(
         instantiate_ctree_from_store_configs,
         base_tree_leaves,
         expected_total_leaves,
@@ -260,20 +252,14 @@ fn test_compound_constructors() {
     );
 
     // same instantiator for MmapStore..
-    run_test_compound_tree::<TestItemType, TestXOR128, MmapStore<TestItemType>, OctTree, OctTree>(
+    run_test_compound_tree::<TestItemType, TestXOR128, MmapStore<TestItemType>, U8, U8>(
         instantiate_ctree_from_store_configs,
         base_tree_leaves,
         expected_total_leaves,
         len,
         root_xor128,
     );
-    run_test_compound_tree::<
-        TestItemType,
-        TestSha256Hasher,
-        MmapStore<TestItemType>,
-        OctTree,
-        OctTree,
-    >(
+    run_test_compound_tree::<TestItemType, TestSha256Hasher, MmapStore<TestItemType>, U8, U8>(
         instantiate_ctree_from_store_configs,
         base_tree_leaves,
         expected_total_leaves,

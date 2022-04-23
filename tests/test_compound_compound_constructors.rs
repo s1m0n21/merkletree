@@ -1,15 +1,16 @@
 #![cfg(not(tarpaulin_include))]
-
 pub mod common;
+
+use typenum::{Unsigned, U0, U2, U8};
+
+use merkletree::hash::Algorithm;
+use merkletree::merkle::{get_merkle_tree_len_generic, Element, MerkleTree};
+use merkletree::store::{DiskStore, MmapStore, Store, StoreConfig, VecStore};
 
 use crate::common::{
     get_vector_of_base_trees, instantiate_new, instantiate_new_with_config,
     test_disk_mmap_vec_tree_functionality, TestItem, TestItemType, TestSha256Hasher, TestXOR128,
 };
-use merkletree::hash::Algorithm;
-use merkletree::merkle::{get_merkle_tree_len_generic, Element, MerkleTree};
-use merkletree::store::{DiskStore, MmapStore, Store, StoreConfig, VecStore};
-use typenum::{Unsigned, U0, U2, U8};
 
 /// Compound-compound tree constructors
 fn instantiate_cctree_from_sub_trees<

@@ -1,14 +1,9 @@
 #![cfg(not(tarpaulin_include))]
-
 pub mod common;
 
 use rayon::iter::IntoParallelIterator;
 use typenum::{Unsigned, U0, U2, U8};
 
-use crate::common::{
-    generate_vector_of_usizes, instantiate_new, instantiate_new_with_config,
-    test_disk_mmap_vec_tree_functionality, TestItem, TestItemType, TestSha256Hasher, TestXOR128,
-};
 use merkletree::hash::Algorithm;
 use merkletree::merkle::{
     get_merkle_tree_len_generic, get_merkle_tree_row_count, Element, FromIndexedParallelIterator,
@@ -16,6 +11,11 @@ use merkletree::merkle::{
 };
 use merkletree::store::{
     DiskStore, LevelCacheStore, MmapStore, Store, StoreConfig, VecStore, SMALL_TREE_BUILD,
+};
+
+use crate::common::{
+    generate_vector_of_usizes, instantiate_new, instantiate_new_with_config,
+    test_disk_mmap_vec_tree_functionality, TestItem, TestItemType, TestSha256Hasher, TestXOR128,
 };
 
 /// Base tree constructors
@@ -190,10 +190,9 @@ fn test_iterable() {
     fn run_tests<E: Element + Copy, A: Algorithm<E>, S: Store<E>>(root: E) {
         let base_tree_leaves = 64;
         let expected_total_leaves = base_tree_leaves;
-        type OctTree = U8;
-        let len = get_merkle_tree_len_generic::<OctTree, U0, U0>(base_tree_leaves).unwrap();
+        let len = get_merkle_tree_len_generic::<U8, U0, U0>(base_tree_leaves).unwrap();
 
-        run_test_base_tree::<E, A, S, OctTree>(
+        run_test_base_tree::<E, A, S, U8>(
             instantiate_new,
             base_tree_leaves,
             None,
@@ -202,7 +201,7 @@ fn test_iterable() {
             root,
         );
 
-        run_test_base_tree::<E, A, S, OctTree>(
+        run_test_base_tree::<E, A, S, U8>(
             instantiate_try_from_iter,
             base_tree_leaves,
             None,
@@ -211,7 +210,7 @@ fn test_iterable() {
             root,
         );
 
-        run_test_base_tree::<E, A, S, OctTree>(
+        run_test_base_tree::<E, A, S, U8>(
             instantiate_from_par_iter,
             base_tree_leaves,
             None,
@@ -222,7 +221,7 @@ fn test_iterable() {
 
         let distinguisher = "instantiate_new_with_config";
         let temp_dir = tempdir::TempDir::new(distinguisher).unwrap();
-        run_test_base_tree::<E, A, S, OctTree>(
+        run_test_base_tree::<E, A, S, U8>(
             instantiate_new_with_config,
             base_tree_leaves,
             Some(StoreConfig::new(
@@ -237,7 +236,7 @@ fn test_iterable() {
 
         let distinguisher = "instantiate_try_from_iter_with_config";
         let temp_dir = tempdir::TempDir::new(distinguisher).unwrap();
-        run_test_base_tree::<E, A, S, OctTree>(
+        run_test_base_tree::<E, A, S, U8>(
             instantiate_try_from_iter_with_config,
             base_tree_leaves,
             Some(StoreConfig::new(
@@ -252,7 +251,7 @@ fn test_iterable() {
 
         let distinguisher = "instantiate_from_par_iter_with_config";
         let temp_dir = tempdir::TempDir::new(distinguisher).unwrap();
-        run_test_base_tree::<E, A, S, OctTree>(
+        run_test_base_tree::<E, A, S, U8>(
             instantiate_from_par_iter_with_config,
             base_tree_leaves,
             Some(StoreConfig::new(
@@ -287,10 +286,9 @@ fn test_iterable_hashable_and_serialization() {
     fn run_tests<E: Element + Copy, A: Algorithm<E>, S: Store<E>>(root: E) {
         let base_tree_leaves = 64;
         let expected_total_leaves = base_tree_leaves;
-        type OctTree = U8;
-        let len = get_merkle_tree_len_generic::<OctTree, U0, U0>(base_tree_leaves).unwrap();
+        let len = get_merkle_tree_len_generic::<U8, U0, U0>(base_tree_leaves).unwrap();
 
-        run_test_base_tree::<E, A, S, OctTree>(
+        run_test_base_tree::<E, A, S, U8>(
             instantiate_from_data,
             base_tree_leaves,
             None,
@@ -301,7 +299,7 @@ fn test_iterable_hashable_and_serialization() {
 
         let distinguisher = "instantiate_from_data_with_config";
         let temp_dir = tempdir::TempDir::new(distinguisher).unwrap();
-        run_test_base_tree::<E, A, S, OctTree>(
+        run_test_base_tree::<E, A, S, U8>(
             instantiate_from_data_with_config,
             base_tree_leaves,
             Some(StoreConfig::new(
@@ -314,7 +312,7 @@ fn test_iterable_hashable_and_serialization() {
             root,
         );
 
-        run_test_base_tree::<E, A, S, OctTree>(
+        run_test_base_tree::<E, A, S, U8>(
             instantiate_from_data_store,
             base_tree_leaves,
             None,
@@ -323,7 +321,7 @@ fn test_iterable_hashable_and_serialization() {
             root,
         );
 
-        run_test_base_tree::<E, A, S, OctTree>(
+        run_test_base_tree::<E, A, S, U8>(
             instantiate_from_tree_slice,
             base_tree_leaves,
             None,
@@ -332,7 +330,7 @@ fn test_iterable_hashable_and_serialization() {
             root,
         );
 
-        run_test_base_tree::<E, A, S, OctTree>(
+        run_test_base_tree::<E, A, S, U8>(
             instantiate_from_byte_slice,
             base_tree_leaves,
             None,
@@ -343,7 +341,7 @@ fn test_iterable_hashable_and_serialization() {
 
         let distinguisher = "instantiate_from_byte_slice_with_config";
         let temp_dir = tempdir::TempDir::new(distinguisher).unwrap();
-        run_test_base_tree::<E, A, S, OctTree>(
+        run_test_base_tree::<E, A, S, U8>(
             instantiate_from_byte_slice_with_config,
             base_tree_leaves,
             Some(StoreConfig::new(
@@ -358,7 +356,7 @@ fn test_iterable_hashable_and_serialization() {
 
         let distinguisher = "instantiate_from_tree_slice_with_config";
         let temp_dir = tempdir::TempDir::new(distinguisher).unwrap();
-        run_test_base_tree::<E, A, S, OctTree>(
+        run_test_base_tree::<E, A, S, U8>(
             instantiate_from_tree_slice_with_config,
             base_tree_leaves,
             Some(StoreConfig::new(
@@ -422,14 +420,13 @@ fn run_base_tree_storage_test<E: Element, A: Algorithm<E>, S: Store<E>, BaseTree
 fn test_storage_types() {
     let base_tree_leaves = 64;
     let expected_total_leaves = base_tree_leaves;
-    type OctTree = U8;
     let branches = 8;
 
     // Disk
     type DiskStorage = DiskStore<TestItemType>;
     let distinguisher = "instantiate_new_with_config-disk";
     let temp_dir = tempdir::TempDir::new(distinguisher).unwrap();
-    run_base_tree_storage_test::<TestItemType, TestXOR128, DiskStorage, OctTree>(
+    run_base_tree_storage_test::<TestItemType, TestXOR128, DiskStorage, U8>(
         instantiate_new_with_config,
         base_tree_leaves,
         Some(StoreConfig::new(
@@ -444,7 +441,7 @@ fn test_storage_types() {
     type MmapStorage = MmapStore<TestItemType>;
     let distinguisher = "instantiate_new_with_config-mmap";
     let temp_dir = tempdir::TempDir::new(distinguisher).unwrap();
-    run_base_tree_storage_test::<TestItemType, TestXOR128, MmapStorage, OctTree>(
+    run_base_tree_storage_test::<TestItemType, TestXOR128, MmapStorage, U8>(
         instantiate_new_with_config,
         base_tree_leaves,
         Some(StoreConfig::new(
@@ -459,7 +456,7 @@ fn test_storage_types() {
     type LevelCacheStorage = LevelCacheStore<TestItemType, std::fs::File>;
     let distinguisher = "instantiate_new_with_config-level-cache";
     let temp_dir = tempdir::TempDir::new(distinguisher).unwrap();
-    run_base_tree_storage_test::<TestItemType, TestXOR128, LevelCacheStorage, OctTree>(
+    run_base_tree_storage_test::<TestItemType, TestXOR128, LevelCacheStorage, U8>(
         instantiate_new_with_config,
         base_tree_leaves,
         Some(StoreConfig::new(

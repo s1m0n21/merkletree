@@ -1,22 +1,20 @@
-use crate::hash::{Algorithm, Hashable};
-use crate::merkle::get_merkle_proof_lemma_len;
-#[cfg(test)]
-use crate::merkle::Element;
-
 use anyhow::Result;
 use std::marker::PhantomData;
 use typenum::marker_traits::Unsigned;
 use typenum::U2;
 
+use crate::hash::{Algorithm, Hashable};
+use crate::merkle::get_merkle_proof_lemma_len;
 #[cfg(test)]
-use typenum::{U0, U1, U3, U4, U5, U8};
-
+use crate::merkle::Element;
 #[cfg(test)]
 use crate::merkle::MerkleTree;
 #[cfg(test)]
 use crate::store::VecStore;
 #[cfg(test)]
 use crate::test_common::{get_vec_tree_from_slice, Item, Sha256Hasher, XOR128};
+#[cfg(test)]
+use typenum::{U0, U1, U3, U4, U5, U8};
 
 /// Merkle tree inclusion proof for data element, for which item = Leaf(Hash(Data Item)).
 ///

@@ -1,14 +1,15 @@
 #![cfg(not(tarpaulin_include))]
-
 pub mod common;
+
+use typenum::{Unsigned, U0, U2, U3, U4, U5, U8};
+
+use merkletree::merkle::{get_merkle_tree_len_generic, Element, MerkleTree};
+use merkletree::store::VecStore;
 
 use crate::common::{
     get_vector_of_base_trees, instantiate_new, test_disk_mmap_vec_tree_functionality, TestItemType,
     TestSha256Hasher,
 };
-use merkletree::merkle::{get_merkle_tree_len_generic, Element, MerkleTree};
-use merkletree::store::VecStore;
-use typenum::{Unsigned, U0, U2, U3, U4, U5, U8};
 
 #[test]
 fn test_base_tree_arities() {

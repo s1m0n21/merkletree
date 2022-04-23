@@ -2,11 +2,12 @@
 #![allow(unsafe_code)]
 #![cfg(not(tarpaulin_include))]
 
-use crate::hash::{Algorithm, Hashable};
-use crate::merkle::Element;
 use byteorder::{ByteOrder, NativeEndian};
 use std::mem;
 use std::slice;
+
+use crate::hash::{Algorithm, Hashable};
+use crate::merkle::Element;
 
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Default, Debug)]
 pub struct Item(pub u64);

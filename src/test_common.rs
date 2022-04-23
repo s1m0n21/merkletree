@@ -1,15 +1,17 @@
 #![cfg(test)]
 #![cfg(not(tarpaulin_include))]
 
-use crate::hash::Algorithm;
-use crate::merkle::{Element, MerkleTree};
-use crate::store::VecStore;
-use crypto::digest::Digest;
-use crypto::sha2::Sha256;
 use std::fmt;
 use std::fmt::{Debug, Formatter};
 use std::hash::Hasher;
+
+use crypto::digest::Digest;
+use crypto::sha2::Sha256;
 use typenum::marker_traits::Unsigned;
+
+use crate::hash::Algorithm;
+use crate::merkle::{Element, MerkleTree};
+use crate::store::VecStore;
 
 pub const SIZE: usize = 0x10;
 
