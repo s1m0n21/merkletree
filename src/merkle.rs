@@ -2059,98 +2059,105 @@ where
 }
 
 #[cfg(test)]
-use typenum::{U1, U11, U16, U4};
+mod tests {
+    use crate::merkle::{
+        get_merkle_tree_cache_size, get_merkle_tree_leafs, get_merkle_tree_len,
+        get_merkle_tree_len_generic,
+    };
+    use crate::store::StoreConfig;
+    use typenum::{U0, U1, U11, U16, U2, U4};
 
-#[test]
-fn test_get_merkle_tree_methods() {
-    assert!(get_merkle_tree_len(16, 4).is_ok());
-    assert!(get_merkle_tree_len(3, 1).is_ok());
+    #[test]
+    fn test_get_merkle_tree_methods() {
+        assert!(get_merkle_tree_len(16, 4).is_ok());
+        assert!(get_merkle_tree_len(3, 1).is_ok());
 
-    assert!(get_merkle_tree_len(0, 0).is_err());
-    assert!(get_merkle_tree_len(1, 0).is_err());
-    assert!(get_merkle_tree_len(1, 2).is_err());
-    assert!(get_merkle_tree_len(4, 16).is_err());
-    assert!(get_merkle_tree_len(1024, 11).is_err());
+        assert!(get_merkle_tree_len(0, 0).is_err());
+        assert!(get_merkle_tree_len(1, 0).is_err());
+        assert!(get_merkle_tree_len(1, 2).is_err());
+        assert!(get_merkle_tree_len(4, 16).is_err());
+        assert!(get_merkle_tree_len(1024, 11).is_err());
 
-    assert!(get_merkle_tree_len_generic::<U4, U0, U0>(16).is_ok());
-    assert!(get_merkle_tree_len_generic::<U1, U0, U0>(3).is_ok());
+        assert!(get_merkle_tree_len_generic::<U4, U0, U0>(16).is_ok());
+        assert!(get_merkle_tree_len_generic::<U1, U0, U0>(3).is_ok());
 
-    assert!(get_merkle_tree_len_generic::<U0, U0, U0>(0).is_err());
-    assert!(get_merkle_tree_len_generic::<U0, U0, U0>(1).is_err());
-    assert!(get_merkle_tree_len_generic::<U2, U0, U0>(1).is_err());
-    assert!(get_merkle_tree_len_generic::<U16, U0, U0>(4).is_err());
-    assert!(get_merkle_tree_len_generic::<U11, U0, U0>(1024).is_err());
+        assert!(get_merkle_tree_len_generic::<U0, U0, U0>(0).is_err());
+        assert!(get_merkle_tree_len_generic::<U0, U0, U0>(1).is_err());
+        assert!(get_merkle_tree_len_generic::<U2, U0, U0>(1).is_err());
+        assert!(get_merkle_tree_len_generic::<U16, U0, U0>(4).is_err());
+        assert!(get_merkle_tree_len_generic::<U11, U0, U0>(1024).is_err());
 
-    assert_eq!(
-        get_merkle_tree_len_generic::<U2, U0, U0>(16).unwrap(),
-        16 + 8 + 4 + 2 + 1
-    );
-    assert_eq!(
-        get_merkle_tree_len_generic::<U2, U4, U0>(16).unwrap(),
-        (16 + 8 + 4 + 2 + 1) * 4 + 1
-    );
-    assert_eq!(
-        get_merkle_tree_len_generic::<U2, U4, U2>(16).unwrap(),
-        ((16 + 8 + 4 + 2 + 1) * 4 + 1) * 2 + 1
-    );
+        assert_eq!(
+            get_merkle_tree_len_generic::<U2, U0, U0>(16).unwrap(),
+            16 + 8 + 4 + 2 + 1
+        );
+        assert_eq!(
+            get_merkle_tree_len_generic::<U2, U4, U0>(16).unwrap(),
+            (16 + 8 + 4 + 2 + 1) * 4 + 1
+        );
+        assert_eq!(
+            get_merkle_tree_len_generic::<U2, U4, U2>(16).unwrap(),
+            ((16 + 8 + 4 + 2 + 1) * 4 + 1) * 2 + 1
+        );
 
-    assert!(get_merkle_tree_leafs(31, 2).is_ok());
-    assert!(get_merkle_tree_leafs(15, 2).is_ok());
-    assert!(get_merkle_tree_leafs(127, 2).is_ok());
+        assert!(get_merkle_tree_leafs(31, 2).is_ok());
+        assert!(get_merkle_tree_leafs(15, 2).is_ok());
+        assert!(get_merkle_tree_leafs(127, 2).is_ok());
 
-    assert!(get_merkle_tree_leafs(1398101, 4).is_ok());
-    assert!(get_merkle_tree_leafs(299593, 8).is_ok());
+        assert!(get_merkle_tree_leafs(1398101, 4).is_ok());
+        assert!(get_merkle_tree_leafs(299593, 8).is_ok());
 
-    assert!(get_merkle_tree_leafs(32, 2).is_err());
-    assert!(get_merkle_tree_leafs(16, 2).is_err());
-    assert!(get_merkle_tree_leafs(128, 2).is_err());
+        assert!(get_merkle_tree_leafs(32, 2).is_err());
+        assert!(get_merkle_tree_leafs(16, 2).is_err());
+        assert!(get_merkle_tree_leafs(128, 2).is_err());
 
-    assert!(get_merkle_tree_leafs(32, 8).is_err());
-    assert!(get_merkle_tree_leafs(16, 8).is_err());
-    assert!(get_merkle_tree_leafs(128, 8).is_err());
+        assert!(get_merkle_tree_leafs(32, 8).is_err());
+        assert!(get_merkle_tree_leafs(16, 8).is_err());
+        assert!(get_merkle_tree_leafs(128, 8).is_err());
 
-    assert!(get_merkle_tree_leafs(1398102, 4).is_err());
-    assert!(get_merkle_tree_leafs(299594, 8).is_err());
+        assert!(get_merkle_tree_leafs(1398102, 4).is_err());
+        assert!(get_merkle_tree_leafs(299594, 8).is_err());
 
-    let mib = 1024 * 1024;
-    let gib = 1024 * mib;
+        let mib = 1024 * 1024;
+        let gib = 1024 * mib;
 
-    // 32 GiB octree cache size sanity checking
-    let leafs = 32 * gib / 32;
-    let rows_to_discard = StoreConfig::default_rows_to_discard(leafs, 8);
-    let tree_size = get_merkle_tree_len(leafs, 8).expect("");
-    let cache_size = get_merkle_tree_cache_size(leafs, 8, rows_to_discard).expect("");
-    assert_eq!(leafs, 1073741824);
-    assert_eq!(tree_size, 1227133513);
-    assert_eq!(rows_to_discard, 2);
-    assert_eq!(cache_size, 2396745);
-    // Note: Values for when the default was 3
-    //assert_eq!(rows_to_discard, 3);
-    //assert_eq!(cache_size, 299593);
+        // 32 GiB octree cache size sanity checking
+        let leafs = 32 * gib / 32;
+        let rows_to_discard = StoreConfig::default_rows_to_discard(leafs, 8);
+        let tree_size = get_merkle_tree_len(leafs, 8).expect("");
+        let cache_size = get_merkle_tree_cache_size(leafs, 8, rows_to_discard).expect("");
+        assert_eq!(leafs, 1073741824);
+        assert_eq!(tree_size, 1227133513);
+        assert_eq!(rows_to_discard, 2);
+        assert_eq!(cache_size, 2396745);
+        // Note: Values for when the default was 3
+        //assert_eq!(rows_to_discard, 3);
+        //assert_eq!(cache_size, 299593);
 
-    // 4 GiB octree cache size sanity checking
-    let leafs = 4 * gib / 32;
-    let rows_to_discard = StoreConfig::default_rows_to_discard(leafs, 8);
-    let tree_size = get_merkle_tree_len(leafs, 8).expect("");
-    let cache_size = get_merkle_tree_cache_size(leafs, 8, rows_to_discard).expect("");
-    assert_eq!(leafs, 134217728);
-    assert_eq!(tree_size, 153391689);
-    assert_eq!(rows_to_discard, 2);
-    assert_eq!(cache_size, 299593);
-    // Note: Values for when the default was 3
-    //assert_eq!(rows_to_discard, 3);
-    //assert_eq!(cache_size, 37449);
+        // 4 GiB octree cache size sanity checking
+        let leafs = 4 * gib / 32;
+        let rows_to_discard = StoreConfig::default_rows_to_discard(leafs, 8);
+        let tree_size = get_merkle_tree_len(leafs, 8).expect("");
+        let cache_size = get_merkle_tree_cache_size(leafs, 8, rows_to_discard).expect("");
+        assert_eq!(leafs, 134217728);
+        assert_eq!(tree_size, 153391689);
+        assert_eq!(rows_to_discard, 2);
+        assert_eq!(cache_size, 299593);
+        // Note: Values for when the default was 3
+        //assert_eq!(rows_to_discard, 3);
+        //assert_eq!(cache_size, 37449);
 
-    // 512 MiB octree cache size sanity checking
-    let leafs = 512 * mib / 32;
-    let rows_to_discard = StoreConfig::default_rows_to_discard(leafs, 8);
-    let tree_size = get_merkle_tree_len(leafs, 8).expect("");
-    let cache_size = get_merkle_tree_cache_size(leafs, 8, rows_to_discard).expect("");
-    assert_eq!(leafs, 16777216);
-    assert_eq!(tree_size, 19173961);
-    assert_eq!(rows_to_discard, 2);
-    assert_eq!(cache_size, 37449);
-    // Note: Values for when the default was 3
-    //assert_eq!(rows_to_discard, 3);
-    //assert_eq!(cache_size, 4681);
+        // 512 MiB octree cache size sanity checking
+        let leafs = 512 * mib / 32;
+        let rows_to_discard = StoreConfig::default_rows_to_discard(leafs, 8);
+        let tree_size = get_merkle_tree_len(leafs, 8).expect("");
+        let cache_size = get_merkle_tree_cache_size(leafs, 8, rows_to_discard).expect("");
+        assert_eq!(leafs, 16777216);
+        assert_eq!(tree_size, 19173961);
+        assert_eq!(rows_to_discard, 2);
+        assert_eq!(cache_size, 37449);
+        // Note: Values for when the default was 3
+        //assert_eq!(rows_to_discard, 3);
+        //assert_eq!(cache_size, 4681);
+    }
 }
