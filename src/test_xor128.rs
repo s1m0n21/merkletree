@@ -483,6 +483,7 @@ fn test_compound_levelcache_octrees_trees_from_store_configs() {
     test_compound_levelcache_tree_from_store_configs::<U8, U7>(4096);
 }
 
+#[test]
 fn test_small_quad_with_partial_cache() {
     let (leafs, len, row_count, num_challenges) = { (256, 341, 5, 256) };
     for rows_to_discard in 1..row_count - 1 {
