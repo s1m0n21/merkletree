@@ -17,6 +17,12 @@ use typenum::marker_traits::Unsigned;
 use crate::hash::Algorithm;
 use crate::merkle::{get_merkle_tree_row_count, log2_pow2, next_pow2, Element};
 
+use qiniu::RangeReader;
+
+use std::collections::HashMap;
+
+use log::warn;
+
 /// Tree size (number of nodes) used as threshold to decide which build algorithm
 /// to use. Small trees (below this value) use the old build algorithm, optimized
 /// for speed rather than memory, allocating as much as needed to allow multiple
@@ -38,10 +44,55 @@ pub use level_cache::LevelCacheStore;
 pub use mmap::MmapStore;
 pub use vec::VecStore;
 
+#[derive(Debug)]
+pub struct MixReader {
+    file: Option<std::fs::File>,
+    qiniu: Option<RangeReader>,
+}
+
+#[allow(unsafe_code)]
+impl MixReader {
+    fn read_internal(&self, pos: u64, buf: &mut [u8]) -> std::io::Result<usize> {
+        // debug!("range read_internal dummy");
+        if self.file.is_none() {
+            let e2 = std::io::Error::new(std::io::ErrorKind::InvalidData, "invalid flow read_internal");
+            warn!("dummy read internal, invalid flow");
+            return Err(e2);
+        }
+        self.file.as_ref().unwrap().read_at(pos, buf)
+    }
+}
+
+impl Read for MixReader {
+    //dummy
+    fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
+        // debug!("range reader read dummy");
+        if self.file.is_none() {
+            let e2 = std::io::Error::new(std::io::ErrorKind::InvalidData, "invalid flow read");
+            warn!("dummy read, invalid flow");
+            return Err(e2);
+        }
+        return self.file.as_ref().unwrap().read(buf);
+    }
+}
+
+#[allow(unsafe_code)]
+impl ReadAt for MixReader {
+    fn read_at(&self, pos: u64, buf: &mut [u8]) -> std::io::Result<usize> {
+        // debug!("range reader read at dummy");
+        if self.file.is_none() {
+            let e2 = std::io::Error::new(std::io::ErrorKind::InvalidData, "invalid flow read_at");
+            return Err(e2);
+        }
+        return self.file.as_ref().unwrap().read_at(pos, buf);
+    }
+}
+
 #[derive(Clone)]
 pub struct ExternalReader<R: Read + Send + Sync> {
     pub offset: usize,
     pub source: R,
+    pub path: String,
     pub read_fn: fn(start: usize, end: usize, buf: &mut [u8], source: &R) -> Result<usize>,
 }
 
@@ -51,25 +102,56 @@ impl<R: Read + Send + Sync> ExternalReader<R> {
     }
 }
 
-impl ExternalReader<std::fs::File> {
-    pub fn new_from_config(replica_config: &ReplicaConfig, index: usize) -> Result<Self> {
-        let reader = OpenOptions::new().read(true).open(&replica_config.path)?;
+#[allow(unsafe_code)]
+impl ExternalReader<MixReader> {
+    pub fn new_from_mix_config(replica_config: &ReplicaConfig, index: usize) -> Result<Self> {
+        let mut _f: Option<std::fs::File> = if replica_config.path.exists() {
+            let file = OpenOptions::new().read(true).open(&replica_config.path)?;
+            Some(file)
+        } else {
+            None
+        };
+
+        let reader = MixReader {
+            file: _f,
+            qiniu: None,
+        };
 
         Ok(ExternalReader {
             offset: replica_config.offsets[index],
             source: reader,
-            read_fn: |start, end, buf: &mut [u8], reader: &std::fs::File| {
-                reader.read_exact_at(start as u64, &mut buf[0..end - start])?;
-
+            path: (replica_config.path).to_str().unwrap().to_string(),
+            read_fn: |start, end, buf: &mut [u8], reader: &MixReader| {
+                reader.read_internal(start as u64, &mut buf[0..end - start])?;
                 Ok(end - start)
             },
         })
     }
 
-    pub fn new_from_path(path: &PathBuf) -> Result<Self> {
-        Self::new_from_config(&ReplicaConfig::from(path), 0)
+    pub fn new_from_mix_path(path: &PathBuf) -> Result<Self> {
+        Self::new_from_mix_config(&ReplicaConfig::from(path), 0)
     }
 }
+
+// impl ExternalReader<std::fs::File> {
+//     pub fn new_from_config(replica_config: &ReplicaConfig, index: usize) -> Result<Self> {
+//         let reader = OpenOptions::new().read(true).open(&replica_config.path)?;
+//
+//         Ok(ExternalReader {
+//             offset: replica_config.offsets[index],
+//             source: reader,
+//             read_fn: |start, end, buf: &mut [u8], reader: &std::fs::File| {
+//                 reader.read_exact_at(start as u64, &mut buf[0..end - start])?;
+//
+//                 Ok(end - start)
+//             },
+//         })
+//     }
+//
+//     pub fn new_from_path(path: &PathBuf) -> Result<Self> {
+//         Self::new_from_config(&ReplicaConfig::from(path), 0)
+//     }
+// }
 
 impl<R: Read + Send + Sync> fmt::Debug for ExternalReader<R> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -198,7 +280,15 @@ impl StoreConfig {
 }
 
 /// Backing store of the merkle tree.
-pub trait Store<E: Element>: std::fmt::Debug + Send + Sync + Sized {
+pub trait Store<E: Element>: fmt::Debug + Send + Sync + Sized {
+    fn new_with_config_v2(
+        _size: usize,
+        _branches: usize,
+        _config: StoreConfig,
+        _post: bool,
+    ) -> Result<Self> {
+        unimplemented!("Only use in qiniu level cache");
+    }
     /// Creates a new store which can store up to `size` elements.
     fn new_with_config(size: usize, branches: usize, config: StoreConfig) -> Result<Self>;
     fn new(size: usize) -> Result<Self>;
@@ -212,6 +302,14 @@ pub trait Store<E: Element>: std::fmt::Debug + Send + Sync + Sized {
 
     fn new_from_slice(size: usize, data: &[u8]) -> Result<Self>;
 
+    fn new_from_disk_v2(
+        _size: usize,
+        _branches: usize,
+        _config: &StoreConfig,
+        _post: bool,
+    ) -> Result<Self> {
+        unimplemented!("Only use in qiniu level cache");
+    }
     fn new_from_disk(size: usize, branches: usize, config: &StoreConfig) -> Result<Self>;
 
     fn write_at(&mut self, el: E, index: usize) -> Result<()>;
@@ -224,7 +322,7 @@ pub trait Store<E: Element>: std::fmt::Debug + Send + Sync + Sized {
 
     // compact/shrink resources used where possible.
     fn compact(&mut self, branches: usize, config: StoreConfig, store_version: u32)
-        -> Result<bool>;
+               -> Result<bool>;
 
     // re-instate resource usage where needed.
     fn reinit(&mut self) -> Result<()> {
@@ -237,10 +335,52 @@ pub trait Store<E: Element>: std::fmt::Debug + Send + Sync + Sized {
     // where this is arguably not important/needed).
     fn delete(config: StoreConfig) -> Result<()>;
 
+    fn get_path_v2(&self) -> Option<String> {
+        None
+    }
     fn read_at(&self, index: usize) -> Result<E>;
+    fn read_at_v2(
+        &self,
+        index: usize,
+        _replica_buf: &[u8],
+        _replica_pos: &Vec<(u64, u64)>,
+        _lstree: &HashMap<&String, (Vec<u8>, Vec<(u64, u64)>, Option<std::io::Error>)>,
+    ) -> Result<E> {
+        self.read_at(index)
+    }
+    fn read_at_v2_range(
+        &self,
+        _index: usize,
+        _replica_pos: &mut (u64, u64),
+        _lstree: &mut HashMap<String, Vec<(u64, u64)>>,
+    ) -> Result<()> {
+        Ok(())
+    }
+
     fn read_range(&self, r: ops::Range<usize>) -> Result<Vec<E>>;
     fn read_into(&self, pos: usize, buf: &mut [u8]) -> Result<()>;
+
     fn read_range_into(&self, start: usize, end: usize, buf: &mut [u8]) -> Result<()>;
+    fn read_range_into_v2(
+        &self,
+        start: usize,
+        end: usize,
+        buf: &mut [u8],
+        _replica_data: &[u8],
+        _replica_pos: &Vec<(u64, u64)>,
+        _lstree: &HashMap<&String, (Vec<u8>, Vec<(u64, u64)>, Option<std::io::Error>)>,
+    ) -> Result<()> {
+        self.read_range_into(start, end, buf)
+    }
+    fn read_range_into_v2_range(
+        &self,
+        _start: usize,
+        _end: usize,
+        _replica_pos: &mut (u64, u64),
+        _lstree: &mut HashMap<String, Vec<(u64, u64)>>,
+    ) -> Result<()> {
+        Ok(())
+    }
 
     fn len(&self) -> usize;
     fn loaded_from_disk(&self) -> bool;
@@ -263,7 +403,6 @@ pub trait Store<E: Element>: std::fmt::Debug + Send + Sync + Sized {
         row_count: usize,
     ) -> Result<E> {
         ensure!(leafs % 2 == 0, "Leafs must be a power of two");
-
         let mut level: usize = 0;
         let mut width = leafs;
         let mut level_node_index = 0;
